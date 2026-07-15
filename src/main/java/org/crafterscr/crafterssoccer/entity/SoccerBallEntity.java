@@ -56,12 +56,12 @@ public class SoccerBallEntity extends Entity {
      *
      * Es ligeramente menor que un clic rápido.
      */
-    private static final double WALK_LEG_TOUCH_POWER = 0.33D;
+    private static final double WALK_LEG_TOUCH_POWER = 0.26D;
 
     /**
      * Potencia del contacto corriendo.
      */
-    private static final double SPRINT_LEG_TOUCH_POWER = 0.46D;
+    private static final double SPRINT_LEG_TOUCH_POWER = 0.62D;
 
     /**
      * Potencia del contacto agachado.
@@ -245,6 +245,7 @@ public class SoccerBallEntity extends Entity {
         Player closestPlayer = null;
         Vec3 closestHitPosition = null;
         AABB closestExpandedBox = null;
+        Vec3 closestOverlapNormal = null;
 
         double closestDistanceSquared =
                 Double.MAX_VALUE;
@@ -258,6 +259,34 @@ public class SoccerBallEntity extends Entity {
                     player.getBoundingBox().inflate(
                             BALL_RADIUS * 0.92D
                     );
+
+            if (expandedPlayerBox.intersects(
+                    this.getBoundingBox()
+            )) {
+                Vec3 overlapNormal =
+                        calculateSeparationNormal(
+                                expandedPlayerBox,
+                                startCenter,
+                                requestedVelocity
+                        );
+
+                closestPlayer =
+                        player;
+
+                closestHitPosition =
+                        startCenter;
+
+                closestExpandedBox =
+                        expandedPlayerBox;
+
+                closestOverlapNormal =
+                        overlapNormal;
+
+                closestDistanceSquared =
+                        0.0D;
+
+                continue;
+            }
 
             Optional<Vec3> possibleHit =
                     expandedPlayerBox.clip(
@@ -291,6 +320,9 @@ public class SoccerBallEntity extends Entity {
 
                 closestExpandedBox =
                         expandedPlayerBox;
+
+                closestOverlapNormal =
+                        null;
             }
         }
 
@@ -306,10 +338,12 @@ public class SoccerBallEntity extends Entity {
         }
 
         Vec3 collisionNormal =
-                calculateCollisionNormal(
-                        closestExpandedBox,
-                        closestHitPosition
-                );
+                closestOverlapNormal != null
+                        ? closestOverlapNormal
+                        : calculateCollisionNormal(
+                                closestExpandedBox,
+                                closestHitPosition
+                        );
 
         /*
          * Permitir que el balón llegue hasta el punto
@@ -323,6 +357,15 @@ public class SoccerBallEntity extends Entity {
                                         0.015D
                                 )
                         );
+
+        if (closestDistanceSquared == 0.0D
+                && allowedMovement.dot(requestedVelocity) < 0.0D) {
+
+            allowedMovement =
+                    collisionNormal.scale(
+                            0.015D
+                    );
+        }
 
         double velocityDotNormal =
                 requestedVelocity.dot(
@@ -564,6 +607,55 @@ public class SoccerBallEntity extends Entity {
     }
 
     /**
+     * Calcula una normal estable cuando el balón ya está
+     * tocando la hitbox expandida del jugador al iniciar
+     * el tick.
+     */
+    private static Vec3 calculateSeparationNormal(
+            AABB box,
+            Vec3 ballCenter,
+            Vec3 requestedVelocity
+    ) {
+        double centerX =
+                (box.minX + box.maxX) * 0.5D;
+
+        double centerZ =
+                (box.minZ + box.maxZ) * 0.5D;
+
+        Vec3 fromPlayerToBall =
+                new Vec3(
+                        ballCenter.x - centerX,
+                        0.0D,
+                        ballCenter.z - centerZ
+                );
+
+        if (fromPlayerToBall.lengthSqr()
+                > 0.0001D) {
+
+            return fromPlayerToBall.normalize();
+        }
+
+        Vec3 oppositeVelocity =
+                requestedVelocity.multiply(
+                        -1.0D,
+                        0.0D,
+                        -1.0D
+                );
+
+        if (oppositeVelocity.lengthSqr()
+                > 0.0001D) {
+
+            return oppositeVelocity.normalize();
+        }
+
+        return new Vec3(
+                1.0D,
+                0.0D,
+                0.0D
+        );
+    }
+
+    /**
      * Aplica un único impulso cuando un jugador toca
      * el balón con las piernas.
      *
@@ -704,42 +796,12 @@ public class SoccerBallEntity extends Entity {
         }
 
         /*
-         * Obtener la dirección horizontal de la cámara,
-         * igual que en un tiro con clic.
+         * El balón sale hacia delante según el avance real
+         * del jugador. Así caminar empuja poco y correr
+         * empuja mucho más, sin atraer ni fijar el balón.
          */
-        Vec3 playerLook =
-                player.getLookAngle();
-
         Vec3 forwardDirection =
-                new Vec3(
-                        playerLook.x,
-                        0.0D,
-                        playerLook.z
-                );
-
-        /*
-         * Respaldo por si la cámara está mirando
-         * completamente hacia arriba o hacia abajo.
-         */
-        if (forwardDirection.lengthSqr()
-                < 0.0001D) {
-
-            forwardDirection =
-                    new Vec3(
-                            -Mth.sin(
-                                    player.getYRot()
-                                            * Mth.DEG_TO_RAD
-                            ),
-                            0.0D,
-                            Mth.cos(
-                                    player.getYRot()
-                                            * Mth.DEG_TO_RAD
-                            )
-                    );
-        }
-
-        forwardDirection =
-                forwardDirection.normalize();
+                playerHorizontalMovement.normalize();
 
         double touchPower;
 
@@ -761,8 +823,10 @@ public class SoccerBallEntity extends Entity {
          * influencia pequeña.
          */
         touchPower += Math.min(
-                playerHorizontalSpeed * 0.12D,
-                0.025D
+                playerHorizontalSpeed * 0.35D,
+                player.isSprinting()
+                        ? 0.11D
+                        : 0.045D
         );
 
         /*
