@@ -1,0 +1,150 @@
+package org.crafterscr.crafterssoccer.client;
+
+import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+
+/**
+ * Indicador alrededor de la cruceta cuando el jugador
+ * puede patear o está cargando un tiro.
+ */
+public final class SoccerCrosshairGui {
+
+    private SoccerCrosshairGui() {
+    }
+
+    public static void render(
+            GuiGraphics graphics,
+            DeltaTracker deltaTracker
+    ) {
+        Minecraft minecraft =
+                Minecraft.getInstance();
+
+        if (minecraft.player == null
+                || minecraft.level == null
+                || minecraft.options.hideGui) {
+            return;
+        }
+
+        boolean lookingAtBall =
+                ClientSoccerState
+                        .isLookingAtKickableBall(
+                                minecraft
+                        );
+
+        boolean charging =
+                ClientSoccerState.isCharging();
+
+        /*
+         * Solo mostrar cuando puede comenzar un tiro
+         * o mientras ya está cargando.
+         */
+        if (!lookingAtBall && !charging) {
+            return;
+        }
+
+        int centerX =
+                graphics.guiWidth() / 2;
+
+        int centerY =
+                graphics.guiHeight() / 2;
+
+        double lookY =
+                minecraft.player
+                        .getLookAngle().y;
+
+        int color;
+
+        /*
+         * El color indica el tipo aproximado de tiro.
+         */
+        if (charging && lookY > 0.48D) {
+            color = 0xFFFFA64D;
+        } else if (charging && lookY > 0.20D) {
+            color = 0xFFFFFF55;
+        } else if (charging) {
+            color = 0xFF47FF75;
+        } else {
+            color = 0xFF56D978;
+        }
+
+        int shadowColor =
+                0xAA000000;
+
+        /*
+         * Marcador izquierdo.
+         */
+        graphics.fill(
+                centerX - 11,
+                centerY - 1,
+                centerX - 7,
+                centerY + 2,
+                shadowColor
+        );
+
+        graphics.fill(
+                centerX - 10,
+                centerY,
+                centerX - 7,
+                centerY + 1,
+                color
+        );
+
+        /*
+         * Marcador derecho.
+         */
+        graphics.fill(
+                centerX + 7,
+                centerY - 1,
+                centerX + 11,
+                centerY + 2,
+                shadowColor
+        );
+
+        graphics.fill(
+                centerX + 7,
+                centerY,
+                centerX + 10,
+                centerY + 1,
+                color
+        );
+
+        /*
+         * Marcador superior.
+         */
+        graphics.fill(
+                centerX - 1,
+                centerY - 11,
+                centerX + 2,
+                centerY - 7,
+                shadowColor
+        );
+
+        graphics.fill(
+                centerX,
+                centerY - 10,
+                centerX + 1,
+                centerY - 7,
+                color
+        );
+
+        /*
+         * Marcador inferior.
+         */
+        graphics.fill(
+                centerX - 1,
+                centerY + 7,
+                centerX + 2,
+                centerY + 11,
+                shadowColor
+        );
+
+        graphics.fill(
+                centerX,
+                centerY + 7,
+                centerX + 1,
+                centerY + 10,
+                color
+        );
+    }
+}
