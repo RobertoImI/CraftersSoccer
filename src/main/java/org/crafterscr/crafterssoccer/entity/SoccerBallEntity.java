@@ -1,8 +1,11 @@
 package org.crafterscr.crafterssoccer.entity;
 
-import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import org.crafterscr.crafterssoccer.physics.SoccerBallPhysics;
@@ -15,6 +18,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
@@ -23,104 +27,132 @@ import net.minecraft.world.phys.Vec3;
 /**
  * Entidad física del balón de fútbol.
  *
- * Controla:
- * - Toques simples con las piernas.
- * - Pases y tiros con clic.
- * - Colisiones contra jugadores.
- * - Rebotes corporales.
+ * Funciones:
+ * - Toque sencillo al chocar con las piernas.
+ * - Mayor impulso al correr.
+ * - Toque suave al agacharse.
+ * - Rebote contra jugadores, mobs y NPC.
+ * - Tiros y pases mediante clic.
  * - Rotación visual.
  */
 public class SoccerBallEntity extends Entity {
 
     /**
-     * Radio aproximado del balón.
+     * Radio físico aproximado del balón.
      */
     public static final float BALL_RADIUS = 0.25F;
 
     /**
-     * Distancia máxima para patear el balón con clic.
+     * Distancia máxima para ejecutar un tiro mediante clic.
      */
     public static final double MAX_KICK_DISTANCE = 4.25D;
 
     /**
-     * Tiempo entre contactos consecutivos de las piernas
-     * del mismo jugador.
+     * Potencia de un toque caminando.
      *
-     * Evita que un único contacto genere un impulso
-     * durante cada tick.
+     * Es equivalente aproximadamente a un clic rápido.
      */
-    private static final int LEG_TOUCH_COOLDOWN_TICKS = 5;
+    private static final double WALK_LEG_TOUCH_POWER = 0.38D;
 
     /**
-     * Potencia del contacto caminando.
+     * Potencia de un toque corriendo.
+     */
+    private static final double SPRINT_LEG_TOUCH_POWER = 0.58D;
+
+    /**
+     * Potencia de un toque agachado.
+     */
+    private static final double CROUCH_LEG_TOUCH_POWER = 0.21D;
+
+    /**
+     * Tiempo mínimo entre contactos del mismo jugador.
+     */
+    private static final int LEG_TOUCH_COOLDOWN_TICKS = 3;
+
+    /**
+     * Tiempo durante el cual se ignora la colisión corporal
+     * del jugador que acaba de tocar el balón con las piernas.
      *
-     * Es ligeramente menor que un clic rápido.
+     * Esto evita que el rebote corporal anule el impulso
+     * aplicado durante el mismo contacto.
      */
-    private static final double WALK_LEG_TOUCH_POWER = 0.26D;
+    private static final int LEG_TOUCH_IGNORE_TICKS = 2;
 
     /**
-     * Potencia del contacto corriendo.
+     * Tiempo durante el cual se ignora al jugador que
+     * acaba de ejecutar un tiro mediante clic.
      */
-    private static final double SPRINT_LEG_TOUCH_POWER = 0.62D;
+    private static final int KICKER_IGNORE_TICKS = 5;
 
     /**
-     * Potencia del contacto agachado.
-     */
-    private static final double CROUCH_LEG_TOUCH_POWER = 0.20D;
-
-    /**
-     * Distancia adicional para detectar las piernas.
-     */
-    private static final double LEG_TOUCH_MARGIN = 0.10D;
-
-    /**
-     * Altura máxima considerada como piernas.
+     * Altura aproximada de las piernas.
      */
     private static final double LEG_HEIGHT = 1.05D;
 
     /**
-     * Velocidad máxima a la que se aplica el toque automático.
-     *
-     * Si el balón ya viene rápido por un tiro o pase,
-     * utiliza la colisión corporal normal.
+     * Margen alrededor de la caja de las piernas.
      */
-    private static final double MAX_LEG_TOUCH_BALL_SPEED = 0.72D;
+    private static final double LEG_CONTACT_MARGIN = 0.12D;
 
     /**
-     * Tiempo durante el cual se ignora al jugador que
-     * acaba de patear mediante clic.
+     * Velocidad máxima del balón para aplicar un toque
+     * automático de piernas.
      *
-     * Evita que el balón rebote inmediatamente contra
-     * el cuerpo del propio tirador.
+     * Un balón que viaje más rápido debe rebotar
+     * normalmente contra el jugador.
      */
-    private static final int KICKER_IGNORE_COLLISION_TICKS = 5;
+    private static final double MAX_LEG_TOUCH_BALL_SPEED = 0.78D;
 
     /**
-     * Rotación visual del balón.
+     * Distancia alrededor del balón en la que se buscan
+     * jugadores que puedan tocarlo.
+     */
+    private static final double PLAYER_SEARCH_DISTANCE = 1.40D;
+
+    /**
+     * Rotación visual.
      */
     private float previousRollDegrees;
     private float rollDegrees;
     private float rollingHeadingDegrees;
 
     /**
-     * Último jugador que produjo un toque con las piernas.
+     * Posición que cada jugador tenía durante la última
+     * actualización de este balón.
+     *
+     * Esto permite medir el movimiento real del jugador
+     * sin depender del orden interno de ticks de Minecraft.
      */
-    private UUID lastLegTouchPlayer;
+    private final Map<UUID, Vec3> previousPlayerPositions =
+            new HashMap<>();
 
     /**
-     * Tick del último toque con las piernas.
+     * Jugadores que terminaron el tick anterior tocando
+     * físicamente el balón.
+     *
+     * Impide aplicar el impulso muchas veces durante
+     * un único contacto continuo.
      */
-    private long lastLegTouchGameTime;
+    private final Set<UUID> playersTouchingLastTick =
+            new HashSet<>();
 
     /**
-     * Jugador ignorado brevemente después de un tiro.
+     * Último tick en el que cada jugador produjo
+     * un contacto válido de piernas.
      */
-    private UUID temporarilyIgnoredPlayer;
+    private final Map<UUID, Long> lastLegTouchTimes =
+            new HashMap<>();
 
     /**
-     * Tick hasta el que se ignora al jugador que pateó.
+     * Entidad ignorada temporalmente después de un toque
+     * de piernas o un tiro.
      */
-    private long ignoredPlayerUntilGameTime;
+    private UUID temporarilyIgnoredEntity;
+
+    /**
+     * Tick hasta el que se ignora la entidad.
+     */
+    private long ignoredEntityUntilGameTime;
 
     public SoccerBallEntity(
             EntityType<? extends SoccerBallEntity> entityType,
@@ -136,7 +168,7 @@ public class SoccerBallEntity extends Entity {
             net.minecraft.network.syncher.SynchedEntityData.Builder builder
     ) {
         /*
-         * Todavía no se utilizan datos personalizados
+         * Todavía no se requieren datos personalizados
          * sincronizados.
          */
     }
@@ -149,26 +181,20 @@ public class SoccerBallEntity extends Entity {
                 this.rollDegrees;
 
         /*
-         * En el servidor, comprobar primero si un jugador
-         * acaba de tocar el balón con las piernas.
-         *
-         * Esto solamente agrega un impulso.
-         * No arrastra ni reposiciona el balón.
+         * Primero detectar las piernas moviéndose
+         * contra el balón.
          */
         if (!this.level().isClientSide()) {
-            applySimpleLegTouch();
+            detectPlayerLegTouches();
         }
 
         /*
-         * Después del toque, el balón continúa libremente
-         * usando su física normal.
+         * Después dejar que el balón continúe libremente
+         * con gravedad, fricción y rebotes.
          */
         SoccerBallPhysics.tick(this);
 
         if (!this.level().isClientSide()) {
-            /*
-             * Eliminar el balón si cae fuera del mundo.
-             */
             if (this.getY()
                     < this.level().getMinBuildHeight() - 32) {
 
@@ -178,7 +204,10 @@ public class SoccerBallEntity extends Entity {
     }
 
     /**
-     * Resultado de una colisión contra un jugador.
+     * Resultado de una colisión contra una entidad.
+     *
+     * Se conserva el nombre anterior para no necesitar
+     * cambiar SoccerBallPhysics.
      */
     public record PlayerCollisionResult(
             Vec3 allowedMovement,
@@ -188,10 +217,405 @@ public class SoccerBallEntity extends Entity {
     }
 
     /**
-     * Comprueba la trayectoria completa del balón durante
-     * el tick.
+     * Detecta el recorrido real de las piernas de jugadores
+     * próximos al balón.
      *
-     * Evita que pases y tiros rápidos atraviesen jugadores.
+     * Cada balón guarda la posición anterior de los jugadores.
+     * De esta forma no dependemos de player.xo ni de que
+     * getDeltaMovement() esté correctamente actualizado.
+     */
+    private void detectPlayerLegTouches() {
+        Vec3 currentBallVelocity =
+                this.getDeltaMovement();
+
+        double ballHorizontalSpeed =
+                currentBallVelocity.multiply(
+                        1.0D,
+                        0.0D,
+                        1.0D
+                ).length();
+
+        AABB searchArea =
+                this.getBoundingBox().inflate(
+                        PLAYER_SEARCH_DISTANCE,
+                        0.70D,
+                        PLAYER_SEARCH_DISTANCE
+                );
+
+        List<Player> nearbyPlayers =
+                this.level().getEntitiesOfClass(
+                        Player.class,
+                        searchArea,
+                        player ->
+                                player.isAlive()
+                                        && !player.isSpectator()
+                );
+
+        Set<UUID> playersSeenThisTick =
+                new HashSet<>();
+
+        Set<UUID> playersTouchingNow =
+                new HashSet<>();
+
+        for (Player player : nearbyPlayers) {
+            UUID playerId =
+                    player.getUUID();
+
+            playersSeenThisTick.add(
+                    playerId
+            );
+
+            Vec3 currentPosition =
+                    player.position();
+
+            Vec3 previousPosition =
+                    this.previousPlayerPositions.get(
+                            playerId
+                    );
+
+            /*
+             * La primera vez que vemos al jugador solamente
+             * guardamos su posición.
+             */
+            if (previousPosition == null) {
+                this.previousPlayerPositions.put(
+                        playerId,
+                        currentPosition
+                );
+
+                if (buildLegBoxAt(
+                        player,
+                        currentPosition
+                ).intersects(
+                        this.getBoundingBox()
+                )) {
+
+                    playersTouchingNow.add(
+                            playerId
+                    );
+                }
+
+                continue;
+            }
+
+            Vec3 playerMovement =
+                    currentPosition.subtract(
+                            previousPosition
+                    ).multiply(
+                            1.0D,
+                            0.0D,
+                            1.0D
+                    );
+
+            AABB previousLegBox =
+                    buildLegBoxAt(
+                            player,
+                            previousPosition
+                    );
+
+            AABB currentLegBox =
+                    buildLegBoxAt(
+                            player,
+                            currentPosition
+                    );
+
+            /*
+             * Caja que cubre todo el recorrido de las piernas
+             * entre la posición anterior y la actual.
+             */
+            AABB sweptLegBox =
+                    previousLegBox.minmax(
+                            currentLegBox
+                    );
+
+            boolean currentlyTouching =
+                    currentLegBox.intersects(
+                            this.getBoundingBox()
+                    );
+
+            boolean crossedBall =
+                    sweptLegBox.intersects(
+                            this.getBoundingBox()
+                    );
+
+            if (currentlyTouching) {
+                playersTouchingNow.add(
+                        playerId
+                );
+            }
+
+            boolean wasAlreadyTouching =
+                    this.playersTouchingLastTick.contains(
+                            playerId
+                    );
+
+            if (ballHorizontalSpeed
+                    <= MAX_LEG_TOUCH_BALL_SPEED
+                    && crossedBall
+                    && !wasAlreadyTouching) {
+
+                tryApplyLegTouch(
+                        player,
+                        playerMovement
+                );
+            }
+
+            this.previousPlayerPositions.put(
+                    playerId,
+                    currentPosition
+            );
+        }
+
+        /*
+         * Eliminar jugadores que dejaron de estar
+         * cerca del balón.
+         */
+        this.previousPlayerPositions
+                .keySet()
+                .removeIf(
+                        uuid ->
+                                !playersSeenThisTick.contains(
+                                        uuid
+                                )
+                );
+
+        this.playersTouchingLastTick.clear();
+
+        this.playersTouchingLastTick.addAll(
+                playersTouchingNow
+        );
+    }
+
+    /**
+     * Construye la caja correspondiente a las piernas
+     * de un jugador en una posición determinada.
+     */
+    private static AABB buildLegBoxAt(
+            Player player,
+            Vec3 position
+    ) {
+        double halfWidth =
+                player.getBbWidth() * 0.5D;
+
+        double minX =
+                position.x - halfWidth;
+
+        double maxX =
+                position.x + halfWidth;
+
+        double minY =
+                position.y - 0.07D;
+
+        double maxY =
+                position.y
+                        + Math.min(
+                        LEG_HEIGHT,
+                        player.getBbHeight()
+                );
+
+        double minZ =
+                position.z - halfWidth;
+
+        double maxZ =
+                position.z + halfWidth;
+
+        return new AABB(
+                minX,
+                minY,
+                minZ,
+                maxX,
+                maxY,
+                maxZ
+        ).inflate(
+                LEG_CONTACT_MARGIN,
+                0.04D,
+                LEG_CONTACT_MARGIN
+        );
+    }
+
+    /**
+     * Intenta aplicar un contacto de piernas.
+     */
+    private void tryApplyLegTouch(
+            Player player,
+            Vec3 playerMovement
+    ) {
+        double playerSpeed =
+                playerMovement.length();
+
+        /*
+         * El jugador debe haberse desplazado realmente.
+         */
+        if (playerSpeed < 0.015D) {
+            return;
+        }
+
+        Vec3 movementDirection =
+                playerMovement.normalize();
+
+        Vec3 playerToBall =
+                new Vec3(
+                        this.getX() - player.getX(),
+                        0.0D,
+                        this.getZ() - player.getZ()
+                );
+
+        /*
+         * El jugador debe haberse movido hacia el balón.
+         */
+        if (playerToBall.lengthSqr()
+                > 0.0001D) {
+
+            Vec3 directionToBall =
+                    playerToBall.normalize();
+
+            double movementTowardBall =
+                    movementDirection.dot(
+                            directionToBall
+                    );
+
+            if (movementTowardBall < 0.02D) {
+                return;
+            }
+        }
+
+        long gameTime =
+                this.level().getGameTime();
+
+        long previousTouchTime =
+                this.lastLegTouchTimes.getOrDefault(
+                        player.getUUID(),
+                        Long.MIN_VALUE
+                );
+
+        if (gameTime - previousTouchTime
+                < LEG_TOUCH_COOLDOWN_TICKS) {
+
+            return;
+        }
+
+        /*
+         * La dirección principal es el desplazamiento real
+         * del jugador.
+         *
+         * Una pequeña influencia de la cámara permite
+         * orientar naturalmente el toque.
+         */
+        Vec3 lookDirection =
+                player.getLookAngle()
+                        .multiply(
+                                1.0D,
+                                0.0D,
+                                1.0D
+                        );
+
+        Vec3 finalDirection =
+                movementDirection;
+
+        if (lookDirection.lengthSqr()
+                > 0.0001D) {
+
+            lookDirection =
+                    lookDirection.normalize();
+
+            finalDirection =
+                    movementDirection.scale(0.88D)
+                            .add(
+                                    lookDirection.scale(
+                                            0.12D
+                                    )
+                            );
+
+            if (finalDirection.lengthSqr()
+                    > 0.0001D) {
+
+                finalDirection =
+                        finalDirection.normalize();
+
+            } else {
+                finalDirection =
+                        movementDirection;
+            }
+        }
+
+        double touchPower;
+
+        if (player.isShiftKeyDown()) {
+            touchPower =
+                    CROUCH_LEG_TOUCH_POWER;
+
+        } else if (player.isSprinting()) {
+            touchPower =
+                    SPRINT_LEG_TOUCH_POWER;
+
+        } else {
+            touchPower =
+                    WALK_LEG_TOUCH_POWER;
+        }
+
+        /*
+         * Añadir una variación pequeña según la velocidad
+         * real con la que se desplazó el jugador.
+         */
+        touchPower +=
+                Math.min(
+                        playerSpeed
+                                * (player.isSprinting()
+                                ? 0.35D
+                                : 0.22D),
+                        player.isSprinting()
+                                ? 0.08D
+                                : 0.04D
+                );
+
+        Vec3 currentVelocity =
+                this.getDeltaMovement();
+
+        double verticalVelocity =
+                this.onGround()
+                        ? 0.0D
+                        : Math.max(
+                        0.0D,
+                        currentVelocity.y
+                ) * 0.60D;
+
+        Vec3 newVelocity =
+                new Vec3(
+                        finalDirection.x
+                                * touchPower,
+                        verticalVelocity,
+                        finalDirection.z
+                                * touchPower
+                );
+
+        this.setDeltaMovement(
+                SoccerBallPhysics.clampVelocity(
+                        newVelocity
+                )
+        );
+
+        this.hasImpulse = true;
+
+        this.lastLegTouchTimes.put(
+                player.getUUID(),
+                gameTime
+        );
+
+        /*
+         * Evitar que el mismo contacto sea procesado
+         * inmediatamente como un rebote corporal.
+         */
+        this.temporarilyIgnoredEntity =
+                player.getUUID();
+
+        this.ignoredEntityUntilGameTime =
+                gameTime
+                        + LEG_TOUCH_IGNORE_TICKS;
+    }
+
+    /**
+     * Comprueba la trayectoria del balón contra jugadores,
+     * mobs, aldeanos, NPC y otras entidades vivas.
      */
     public PlayerCollisionResult resolvePlayerCollision(
             Vec3 requestedVelocity
@@ -207,83 +631,91 @@ public class SoccerBallEntity extends Entity {
         }
 
         Vec3 startCenter =
-                this.position().add(
-                        0.0D,
-                        BALL_RADIUS,
-                        0.0D
-                );
+                getBallCenter();
 
         Vec3 endCenter =
                 startCenter.add(
                         requestedVelocity
                 );
 
-        /*
-         * Área completa recorrida por el balón durante
-         * este tick.
-         */
         AABB sweptArea =
                 this.getBoundingBox()
                         .expandTowards(
                                 requestedVelocity
                         )
-                        .inflate(0.15D);
+                        .inflate(0.18D);
 
-        List<Player> candidates =
+        List<LivingEntity> candidates =
                 this.level().getEntitiesOfClass(
-                        Player.class,
+                        LivingEntity.class,
                         sweptArea,
-                        this::shouldCollideWithPlayer
+                        this::shouldCollideWithEntity
                 );
 
-        Player closestPlayer = null;
+        LivingEntity closestEntity = null;
+
         Vec3 closestHitPosition = null;
+
         AABB closestExpandedBox = null;
+
         Vec3 closestOverlapNormal = null;
+
+        boolean startedOverlapping = false;
 
         double closestDistanceSquared =
                 Double.MAX_VALUE;
 
-        for (Player player : candidates) {
-            /*
-             * Expandir la hitbox del jugador utilizando
-             * el radio del balón.
-             */
-            AABB expandedPlayerBox =
-                    player.getBoundingBox().inflate(
-                            BALL_RADIUS * 0.92D
+        for (LivingEntity livingEntity : candidates) {
+            AABB expandedEntityBox =
+                    livingEntity.getBoundingBox()
+                            .inflate(
+                                    BALL_RADIUS * 0.94D
+                            );
+
+            boolean overlapping =
+                    expandedEntityBox.contains(
+                            startCenter
+                    )
+                            || expandedEntityBox.intersects(
+                            this.getBoundingBox()
                     );
 
-            if (expandedPlayerBox.intersects(
-                    this.getBoundingBox()
-            )) {
-                Vec3 overlapNormal =
-                        calculateSeparationNormal(
-                                expandedPlayerBox,
-                                startCenter,
-                                requestedVelocity
+            if (overlapping) {
+                double distanceSquared =
+                        this.distanceToSqr(
+                                livingEntity
                         );
 
-                closestPlayer =
-                        player;
+                if (distanceSquared
+                        < closestDistanceSquared) {
 
-                closestHitPosition =
-                        startCenter;
+                    closestDistanceSquared =
+                            distanceSquared;
 
-                closestExpandedBox =
-                        expandedPlayerBox;
+                    closestEntity =
+                            livingEntity;
 
-                closestOverlapNormal =
-                        overlapNormal;
+                    closestHitPosition =
+                            startCenter;
 
-                closestDistanceSquared =
-                        0.0D;
+                    closestExpandedBox =
+                            expandedEntityBox;
+
+                    closestOverlapNormal =
+                            calculateOverlapNormal(
+                                    livingEntity,
+                                    startCenter,
+                                    requestedVelocity
+                            );
+
+                    startedOverlapping = true;
+                }
 
                 continue;
             }
 
             Optional<Vec3> possibleHit =
-                    expandedPlayerBox.clip(
+                    expandedEntityBox.clip(
                             startCenter,
                             endCenter
                     );
@@ -306,21 +738,22 @@ public class SoccerBallEntity extends Entity {
                 closestDistanceSquared =
                         distanceSquared;
 
-                closestPlayer =
-                        player;
+                closestEntity =
+                        livingEntity;
 
                 closestHitPosition =
                         hitPosition;
 
                 closestExpandedBox =
-                        expandedPlayerBox;
+                        expandedEntityBox;
 
-                closestOverlapNormal =
-                        null;
+                closestOverlapNormal = null;
+
+                startedOverlapping = false;
             }
         }
 
-        if (closestPlayer == null
+        if (closestEntity == null
                 || closestHitPosition == null
                 || closestExpandedBox == null) {
 
@@ -331,198 +764,215 @@ public class SoccerBallEntity extends Entity {
             );
         }
 
-        Vec3 collisionNormal =
-                closestOverlapNormal != null
-                        ? closestOverlapNormal
-                        : calculateCollisionNormal(
-                                closestExpandedBox,
-                                closestHitPosition
-                        );
+        Vec3 collisionNormal;
 
-        /*
-         * Permitir que el balón llegue hasta el punto
-         * de impacto, pero sin atravesar al jugador.
-         */
-        Vec3 allowedMovement =
-                closestHitPosition
-                        .subtract(startCenter)
-                        .add(
-                                collisionNormal.scale(
-                                        0.015D
-                                )
-                        );
+        Vec3 allowedMovement;
 
-        if (closestDistanceSquared == 0.0D
-                && allowedMovement.dot(requestedVelocity) < 0.0D) {
+        if (startedOverlapping
+                && closestOverlapNormal != null) {
+
+            collisionNormal =
+                    closestOverlapNormal;
 
             allowedMovement =
-                    collisionNormal.scale(
-                            0.015D
-                    );
-        }
-
-        double velocityDotNormal =
-                requestedVelocity.dot(
-                        collisionNormal
-                );
-
-        Vec3 reflectedVelocity =
-                requestedVelocity;
-
-        /*
-         * Reflejar la velocidad cuando el balón avanza
-         * hacia dentro del jugador.
-         */
-        if (velocityDotNormal < 0.0D) {
-            reflectedVelocity =
-                    requestedVelocity.subtract(
-                            collisionNormal.scale(
-                                    (1.0D
-                                            + SoccerBallPhysics.PLAYER_BOUNCE)
-                                            * velocityDotNormal
-                            )
-                    );
-        }
-
-        Vec3 playerMovement =
-                closestPlayer.getDeltaMovement();
-
-        Vec3 playerHorizontalMovement =
-                playerMovement.multiply(
-                        1.0D,
-                        0.0D,
-                        1.0D
-                );
-
-        double playerHorizontalSpeed =
-                playerHorizontalMovement.length();
-
-        boolean impactAtLegHeight =
-                startCenter.y
-                        <= closestPlayer.getY()
-                        + LEG_HEIGHT;
-
-        if (impactAtLegHeight
-                && playerHorizontalSpeed > 0.012D) {
-            /*
-             * Un contacto con las piernas debe comportarse como
-             * un toque de fútbol: el balón sale hacia delante
-             * según el avance real del jugador.
-             *
-             * No se refleja contra el cuerpo ni se queda pegado
-             * a la hitbox.
-             */
-            Vec3 movementDirection =
-                    playerHorizontalMovement.normalize();
-
-            double forwardPower =
-                    closestPlayer.isShiftKeyDown()
-                            ? CROUCH_LEG_TOUCH_POWER
-                            : closestPlayer.isSprinting()
-                            ? SPRINT_LEG_TOUCH_POWER
-                            : WALK_LEG_TOUCH_POWER;
-
-            forwardPower += Math.min(
-                    playerHorizontalSpeed * 0.45D,
-                    closestPlayer.isSprinting()
-                            ? 0.14D
-                            : 0.06D
-            );
-
-            double carriedSpeed =
-                    Math.max(
-                            requestedVelocity.multiply(
-                                    1.0D,
-                                    0.0D,
-                                    1.0D
-                            ).length() * 0.58D,
-                            forwardPower
-                    );
-
-            reflectedVelocity =
-                    movementDirection.scale(
-                            carriedSpeed
-                    ).add(
-                            0.0D,
-                            Math.max(
-                                    0.0D,
-                                    requestedVelocity.y * 0.35D
-                            ),
-                            0.0D
-                    );
-
-        } else if (playerHorizontalSpeed > 0.012D) {
-            /*
-             * Si el cuerpo alcanza el balón, también lo empuja
-             * hacia delante en vez de producir un rebote blando
-             * tipo slime o una sensación pegajosa.
-             */
-            Vec3 movementDirection =
-                    playerHorizontalMovement.normalize();
-
-            double bodyPushPower =
-                    Math.max(
-                            playerHorizontalSpeed * 1.15D,
-                            0.18D
-                    );
-
-            reflectedVelocity =
-                    movementDirection.scale(
-                            bodyPushPower
-                    ).add(
-                            0.0D,
-                            Math.max(
-                                    0.0D,
-                                    requestedVelocity.y * 0.25D
-                            ),
-                            0.0D
+                    calculateOverlapEscapeMovement(
+                            closestExpandedBox,
+                            startCenter,
+                            collisionNormal
                     );
 
         } else {
-            /*
-             * Jugador quieto: separar sin sonido y con un rebote
-             * seco muy pequeño para evitar que el balón quede
-             * dentro de la hitbox.
-             */
-            reflectedVelocity =
-                    collisionNormal.scale(
-                            0.08D
-                    ).add(
-                            0.0D,
-                            Math.max(
-                                    0.0D,
-                                    requestedVelocity.y * 0.25D
-                            ),
-                            0.0D
+            collisionNormal =
+                    calculateCollisionNormal(
+                            closestExpandedBox,
+                            closestHitPosition
                     );
+
+            allowedMovement =
+                    closestHitPosition
+                            .subtract(
+                                    startCenter
+                            )
+                            .add(
+                                    collisionNormal.scale(
+                                            0.018D
+                                    )
+                            );
         }
 
-        reflectedVelocity =
-                SoccerBallPhysics.clampVelocity(
-                        reflectedVelocity
+        Vec3 entityMovement =
+                getEntityMovement(
+                        closestEntity
                 );
 
-        /*
-         * Los contactos con jugadores no reproducen sonido.
-         * El balón debe sentirse como una pelota de fútbol, no
-         * como un slime.
-         */
+        boolean impactAtLegHeight =
+                startCenter.y
+                        <= closestEntity.getY()
+                        + Math.min(
+                        LEG_HEIGHT,
+                        closestEntity.getBbHeight()
+                                * 0.65D
+                );
+
+        Vec3 resultingVelocity =
+                calculateBounceVelocity(
+                        requestedVelocity,
+                        entityMovement,
+                        collisionNormal,
+                        impactAtLegHeight
+                );
+
         return new PlayerCollisionResult(
                 allowedMovement,
-                reflectedVelocity,
+                SoccerBallPhysics.clampVelocity(
+                        resultingVelocity
+                ),
                 true
         );
     }
 
     /**
-     * Determina si el balón debe colisionar contra
-     * un jugador.
+     * Calcula el rebote contra una entidad sólida.
      */
-    private boolean shouldCollideWithPlayer(
-            Player player
+    private static Vec3 calculateBounceVelocity(
+            Vec3 ballVelocity,
+            Vec3 entityVelocity,
+            Vec3 collisionNormal,
+            boolean impactAtLegHeight
     ) {
-        if (!player.isAlive()
-                || player.isSpectator()) {
+        Vec3 relativeVelocity =
+                ballVelocity.subtract(
+                        entityVelocity
+                );
+
+        double speedIntoEntity =
+                relativeVelocity.dot(
+                        collisionNormal
+                );
+
+        Vec3 bouncedVelocity =
+                ballVelocity;
+
+        if (speedIntoEntity < 0.0D) {
+            Vec3 reflectedRelativeVelocity =
+                    relativeVelocity.subtract(
+                            collisionNormal.scale(
+                                    (1.0D
+                                            + SoccerBallPhysics.PLAYER_BOUNCE)
+                                            * speedIntoEntity
+                            )
+                    );
+
+            bouncedVelocity =
+                    reflectedRelativeVelocity.add(
+                            entityVelocity
+                    );
+        }
+
+        /*
+         * Si la entidad se mueve hacia el balón,
+         * su movimiento también lo impulsa.
+         */
+        double entitySpeedTowardBall =
+                entityVelocity.dot(
+                        collisionNormal
+                );
+
+        if (entitySpeedTowardBall > 0.0D) {
+            double additionalPower =
+                    Math.min(
+                            entitySpeedTowardBall
+                                    * (impactAtLegHeight
+                                    ? 1.45D
+                                    : 0.95D),
+                            impactAtLegHeight
+                                    ? 0.36D
+                                    : 0.22D
+                    );
+
+            double existingNormalSpeed =
+                    bouncedVelocity.dot(
+                            collisionNormal
+                    );
+
+            if (existingNormalSpeed
+                    < additionalPower) {
+
+                Vec3 tangentVelocity =
+                        bouncedVelocity.subtract(
+                                collisionNormal.scale(
+                                        existingNormalSpeed
+                                )
+                        );
+
+                bouncedVelocity =
+                        tangentVelocity.scale(0.88D)
+                                .add(
+                                        collisionNormal.scale(
+                                                additionalPower
+                                        )
+                                );
+            }
+        }
+
+        /*
+         * Un golpe contra el torso absorbe más energía.
+         */
+        if (!impactAtLegHeight) {
+            bouncedVelocity =
+                    new Vec3(
+                            bouncedVelocity.x * 0.82D,
+                            bouncedVelocity.y * 0.76D,
+                            bouncedVelocity.z * 0.82D
+                    );
+        }
+
+        /*
+         * Evitar que un impacto en piernas clave
+         * el balón contra el suelo.
+         */
+        if (impactAtLegHeight
+                && bouncedVelocity.y < 0.0D) {
+
+            bouncedVelocity =
+                    new Vec3(
+                            bouncedVelocity.x,
+                            0.0D,
+                            bouncedVelocity.z
+                    );
+        }
+
+        /*
+         * Todo impacto real debe producir un rebote visible.
+         */
+        if (bouncedVelocity.multiply(
+                1.0D,
+                0.0D,
+                1.0D
+        ).lengthSqr() < 0.0016D) {
+
+            bouncedVelocity =
+                    new Vec3(
+                            collisionNormal.x * 0.15D,
+                            Math.max(
+                                    0.0D,
+                                    bouncedVelocity.y
+                            ),
+                            collisionNormal.z * 0.15D
+                    );
+        }
+
+        return bouncedVelocity;
+    }
+
+    /**
+     * Decide si el balón debe colisionar contra una entidad.
+     */
+    private boolean shouldCollideWithEntity(
+            LivingEntity livingEntity
+    ) {
+        if (!livingEntity.isAlive()
+                || livingEntity.isSpectator()) {
 
             return false;
         }
@@ -530,25 +980,77 @@ public class SoccerBallEntity extends Entity {
         long gameTime =
                 this.level().getGameTime();
 
-        /*
-         * Ignorar brevemente solamente al jugador que
-         * acaba de ejecutar un tiro con clic.
-         */
-        if (this.temporarilyIgnoredPlayer != null
-                && player.getUUID().equals(
-                this.temporarilyIgnoredPlayer
+        return this.temporarilyIgnoredEntity == null
+                || !livingEntity.getUUID().equals(
+                this.temporarilyIgnoredEntity
         )
-                && gameTime
-                <= this.ignoredPlayerUntilGameTime) {
-
-            return false;
-        }
-
-        return true;
+                || gameTime
+                > this.ignoredEntityUntilGameTime;
     }
 
     /**
-     * Calcula qué cara de la hitbox del jugador fue golpeada.
+     * Obtiene el movimiento de una entidad para calcular
+     * el rebote.
+     */
+    private static Vec3 getEntityMovement(
+            LivingEntity livingEntity
+    ) {
+        Vec3 movement =
+                livingEntity.getDeltaMovement();
+
+        if (livingEntity instanceof Player) {
+            Vec3 positionMovement =
+                    new Vec3(
+                            livingEntity.getX()
+                                    - livingEntity.xo,
+                            livingEntity.getY()
+                                    - livingEntity.yo,
+                            livingEntity.getZ()
+                                    - livingEntity.zo
+                    );
+
+            if (positionMovement.multiply(
+                    1.0D,
+                    0.0D,
+                    1.0D
+            ).lengthSqr()
+                    > movement.multiply(
+                    1.0D,
+                    0.0D,
+                    1.0D
+            ).lengthSqr()) {
+
+                movement =
+                        positionMovement;
+            }
+        }
+
+        Vec3 horizontalMovement =
+                movement.multiply(
+                        1.0D,
+                        0.0D,
+                        1.0D
+                );
+
+        if (horizontalMovement.length()
+                > 1.20D) {
+
+            horizontalMovement =
+                    horizontalMovement.normalize()
+                            .scale(
+                                    1.20D
+                            );
+        }
+
+        return new Vec3(
+                horizontalMovement.x,
+                movement.y,
+                horizontalMovement.z
+        );
+    }
+
+    /**
+     * Calcula la normal de una colisión normal.
      */
     private static Vec3 calculateCollisionNormal(
             AABB box,
@@ -595,83 +1097,87 @@ public class SoccerBallEntity extends Entity {
                 );
 
         if (distanceMaxX < minimumDistance) {
-            minimumDistance = distanceMaxX;
+            minimumDistance =
+                    distanceMaxX;
 
-            normal = new Vec3(
-                    1.0D,
-                    0.0D,
-                    0.0D
-            );
+            normal =
+                    new Vec3(
+                            1.0D,
+                            0.0D,
+                            0.0D
+                    );
         }
 
         if (distanceMinY < minimumDistance) {
-            minimumDistance = distanceMinY;
+            minimumDistance =
+                    distanceMinY;
 
-            normal = new Vec3(
-                    0.0D,
-                    -1.0D,
-                    0.0D
-            );
+            normal =
+                    new Vec3(
+                            0.0D,
+                            -1.0D,
+                            0.0D
+                    );
         }
 
         if (distanceMaxY < minimumDistance) {
-            minimumDistance = distanceMaxY;
+            minimumDistance =
+                    distanceMaxY;
 
-            normal = new Vec3(
-                    0.0D,
-                    1.0D,
-                    0.0D
-            );
+            normal =
+                    new Vec3(
+                            0.0D,
+                            1.0D,
+                            0.0D
+                    );
         }
 
         if (distanceMinZ < minimumDistance) {
-            minimumDistance = distanceMinZ;
+            minimumDistance =
+                    distanceMinZ;
 
-            normal = new Vec3(
-                    0.0D,
-                    0.0D,
-                    -1.0D
-            );
+            normal =
+                    new Vec3(
+                            0.0D,
+                            0.0D,
+                            -1.0D
+                    );
         }
 
         if (distanceMaxZ < minimumDistance) {
-            normal = new Vec3(
-                    0.0D,
-                    0.0D,
-                    1.0D
-            );
+            normal =
+                    new Vec3(
+                            0.0D,
+                            0.0D,
+                            1.0D
+                    );
         }
 
         return normal;
     }
 
     /**
-     * Calcula una normal estable cuando el balón ya está
-     * tocando la hitbox expandida del jugador al iniciar
-     * el tick.
+     * Calcula una dirección estable cuando el balón
+     * comienza dentro de una hitbox.
      */
-    private static Vec3 calculateSeparationNormal(
-            AABB box,
+    private static Vec3 calculateOverlapNormal(
+            LivingEntity livingEntity,
             Vec3 ballCenter,
             Vec3 requestedVelocity
     ) {
-        double centerX =
-                (box.minX + box.maxX) * 0.5D;
-
-        double centerZ =
-                (box.minZ + box.maxZ) * 0.5D;
-
-        Vec3 fromPlayerToBall =
+        Vec3 fromEntityToBall =
                 new Vec3(
-                        ballCenter.x - centerX,
+                        ballCenter.x
+                                - livingEntity.getX(),
                         0.0D,
-                        ballCenter.z - centerZ
+                        ballCenter.z
+                                - livingEntity.getZ()
                 );
 
-        if (fromPlayerToBall.lengthSqr()
+        if (fromEntityToBall.lengthSqr()
                 > 0.0001D) {
 
-            return fromPlayerToBall.normalize();
+            return fromEntityToBall.normalize();
         }
 
         Vec3 oppositeVelocity =
@@ -695,269 +1201,60 @@ public class SoccerBallEntity extends Entity {
     }
 
     /**
-     * Aplica un único impulso cuando un jugador toca
-     * el balón con las piernas.
-     *
-     * No existe asistencia de regate.
-     * No existe posición objetivo.
-     * No existe atracción hacia el jugador.
-     *
-     * El impulso sale hacia la dirección horizontal
-     * en la que mira el jugador, como un clic rápido.
+     * Saca el balón de una hitbox cuando comenzó
+     * el tick dentro de ella.
      */
-    private void applySimpleLegTouch() {
-        Vec3 currentVelocity =
-                this.getDeltaMovement();
-
-        Vec3 currentHorizontalVelocity =
-                currentVelocity.multiply(
-                        1.0D,
-                        0.0D,
-                        1.0D
-                );
-
-        /*
-         * Si el balón ya viene rápido, no aplicar el toque
-         * automático. En ese caso debe rebotar normalmente.
-         */
-        if (currentHorizontalVelocity.length()
-                > MAX_LEG_TOUCH_BALL_SPEED) {
-
-            return;
-        }
-
-        /*
-         * Buscar jugadores muy cerca del balón.
-         */
-        AABB searchArea =
-                this.getBoundingBox().inflate(
-                        0.20D,
-                        0.14D,
-                        0.20D
-                );
-
-        List<Player> touchingPlayers =
-                this.level().getEntitiesOfClass(
-                        Player.class,
-                        searchArea,
-                        player ->
-                                player.isAlive()
-                                        && !player.isSpectator()
-                                        && isTouchingBallWithLegs(
-                                        player
-                                )
-                );
-
-        if (touchingPlayers.isEmpty()) {
-            return;
-        }
-
-        Player player =
-                touchingPlayers.stream()
-                        .min(
-                                Comparator.comparingDouble(
-                                        this::distanceToSqr
-                                )
-                        )
-                        .orElse(null);
-
-        if (player == null) {
-            return;
-        }
-
-        /*
-         * El jugador debe estar caminando o corriendo.
-         *
-         * Estar quieto junto al balón no lo mueve.
-         */
-        Vec3 playerHorizontalMovement =
-                player.getDeltaMovement()
-                        .multiply(
-                                1.0D,
-                                0.0D,
-                                1.0D
-                        );
-
-        double playerHorizontalSpeed =
-                playerHorizontalMovement.length();
-
-        if (playerHorizontalSpeed < 0.012D) {
-            return;
-        }
-
-        /*
-         * Comprobar que el jugador se esté acercando
-         * aproximadamente al balón.
-         *
-         * Evita que el contacto se active cuando ya se
-         * está alejando.
-         */
-        Vec3 playerToBall =
-                new Vec3(
-                        this.getX() - player.getX(),
-                        0.0D,
-                        this.getZ() - player.getZ()
-                );
-
-        if (playerToBall.lengthSqr() > 0.0001D) {
-            Vec3 directionToBall =
-                    playerToBall.normalize();
-
-            Vec3 movementDirection =
-                    playerHorizontalMovement.normalize();
-
-            double movingTowardBall =
-                    movementDirection.dot(
-                            directionToBall
-                    );
-
-            if (movingTowardBall < 0.05D) {
-                return;
-            }
-        }
-
-        long gameTime =
-                this.level().getGameTime();
-
-        /*
-         * Evitar múltiples impulsos durante el mismo
-         * contacto físico.
-         */
-        if (this.lastLegTouchPlayer != null
-                && player.getUUID().equals(
-                this.lastLegTouchPlayer
-        )
-                && gameTime
-                - this.lastLegTouchGameTime
-                < LEG_TOUCH_COOLDOWN_TICKS) {
-
-            return;
-        }
-
-        /*
-         * El balón sale hacia delante según el avance real
-         * del jugador. Así caminar empuja poco y correr
-         * empuja mucho más, sin atraer ni fijar el balón.
-         */
-        Vec3 forwardDirection =
-                playerHorizontalMovement.normalize();
-
-        double touchPower;
-
-        if (player.isShiftKeyDown()) {
-            touchPower =
-                    CROUCH_LEG_TOUCH_POWER;
-
-        } else if (player.isSprinting()) {
-            touchPower =
-                    SPRINT_LEG_TOUCH_POWER;
-
-        } else {
-            touchPower =
-                    WALK_LEG_TOUCH_POWER;
-        }
-
-        /*
-         * La velocidad real del jugador agrega una
-         * influencia pequeña.
-         */
-        touchPower += Math.min(
-                playerHorizontalSpeed * 0.35D,
-                player.isSprinting()
-                        ? 0.11D
-                        : 0.045D
-        );
-
-        /*
-         * Sustituir directamente el movimiento horizontal.
-         *
-         * No se mezcla gradualmente.
-         * No se dirige el balón hacia una posición objetivo.
-         * No se intenta mantenerlo cerca.
-         */
-        Vec3 newVelocity =
-                new Vec3(
-                        forwardDirection.x * touchPower,
-                        currentVelocity.y,
-                        forwardDirection.z * touchPower
-                );
-
-        /*
-         * Evitar que un contacto en el suelo produzca
-         * un pequeño salto artificial.
-         */
-        if (this.onGround()
-                && newVelocity.y < 0.0D) {
-
-            newVelocity =
-                    new Vec3(
-                            newVelocity.x,
-                            0.0D,
-                            newVelocity.z
-                    );
-        }
-
-        this.setDeltaMovement(
-                SoccerBallPhysics.clampVelocity(
-                        newVelocity
-                )
-        );
-
-        this.hasImpulse = true;
-
-        this.lastLegTouchPlayer =
-                player.getUUID();
-
-        this.lastLegTouchGameTime =
-                gameTime;
-
-        /*
-         * Los toques automáticos con piernas son silenciosos.
-         */
-    }
-
-    /**
-     * Comprueba si el balón está tocando la zona baja
-     * de la hitbox del jugador.
-     */
-    private boolean isTouchingBallWithLegs(
-            Player player
+    private static Vec3 calculateOverlapEscapeMovement(
+            AABB expandedBox,
+            Vec3 ballCenter,
+            Vec3 collisionNormal
     ) {
-        AABB playerBox =
-                player.getBoundingBox();
+        double safetyMargin =
+                0.022D;
 
-        AABB legBox =
-                new AABB(
-                        playerBox.minX,
-                        playerBox.minY - 0.05D,
-                        playerBox.minZ,
-                        playerBox.maxX,
-                        Math.min(
-                                playerBox.minY
-                                        + LEG_HEIGHT,
-                                playerBox.maxY
-                        ),
-                        playerBox.maxZ
-                ).inflate(
-                        LEG_TOUCH_MARGIN,
-                        0.04D,
-                        LEG_TOUCH_MARGIN
+        if (Math.abs(collisionNormal.x)
+                >= Math.abs(collisionNormal.z)) {
+
+            if (collisionNormal.x >= 0.0D) {
+                return new Vec3(
+                        expandedBox.maxX
+                                - ballCenter.x
+                                + safetyMargin,
+                        0.0D,
+                        0.0D
                 );
+            }
 
-        return legBox.intersects(
-                this.getBoundingBox()
+            return new Vec3(
+                    expandedBox.minX
+                            - ballCenter.x
+                            - safetyMargin,
+                    0.0D,
+                    0.0D
+            );
+        }
+
+        if (collisionNormal.z >= 0.0D) {
+            return new Vec3(
+                    0.0D,
+                    0.0D,
+                    expandedBox.maxZ
+                            - ballCenter.z
+                            + safetyMargin
+            );
+        }
+
+        return new Vec3(
+                0.0D,
+                0.0D,
+                expandedBox.minZ
+                        - ballCenter.z
+                        - safetyMargin
         );
     }
 
     /**
      * Patea el balón mediante clic.
-     *
-     * Controles:
-     *
-     * - Clic rápido: toque o pase corto.
-     * - Mantener clic: pase o tiro largo.
-     * - Mirar arriba: elevar el balón.
-     * - Mirar casi verticalmente: levantarlo mucho.
      */
     public void kick(
             ServerPlayer player,
@@ -1040,10 +1337,6 @@ public class SoccerBallEntity extends Entity {
                         1.22D
                 );
 
-        /*
-         * Desviación lateral según el punto donde
-         * se golpeó el balón.
-         */
         double lateralInfluence =
                 0.18D
                         + curvedCharge * 0.82D;
@@ -1071,10 +1364,6 @@ public class SoccerBallEntity extends Entity {
                     finalHorizontalDirection.normalize();
         }
 
-        /*
-         * Elevación según la dirección vertical
-         * de la cámara.
-         */
         double upwardLook =
                 Mth.clamp(
                         playerLook.y,
@@ -1088,9 +1377,6 @@ public class SoccerBallEntity extends Entity {
                         0.88D
                 );
 
-        /*
-         * Factor adicional para tiros casi verticales.
-         */
         double extremeUpwardFactor =
                 Mth.clamp(
                         (upwardLook - 0.55D)
@@ -1150,9 +1436,6 @@ public class SoccerBallEntity extends Entity {
                         1.38D
                 );
 
-        /*
-         * Los tiros muy verticales pierden avance horizontal.
-         */
         double highShotReduction =
                 1.0D
                         - aimedLift * 0.16D
@@ -1188,26 +1471,17 @@ public class SoccerBallEntity extends Entity {
 
         this.hasImpulse = true;
 
-        /*
-         * Ignorar brevemente al tirador para evitar que
-         * el balón rebote contra él inmediatamente.
-         */
-        this.temporarilyIgnoredPlayer =
+        this.temporarilyIgnoredEntity =
                 player.getUUID();
 
-        this.ignoredPlayerUntilGameTime =
+        this.ignoredEntityUntilGameTime =
                 this.level().getGameTime()
-                        + KICKER_IGNORE_COLLISION_TICKS;
+                        + KICKER_IGNORE_TICKS;
 
-        /*
-         * Evitar que el mismo movimiento produzca además
-         * un toque inmediato de piernas.
-         */
-        this.lastLegTouchPlayer =
-                player.getUUID();
-
-        this.lastLegTouchGameTime =
-                this.level().getGameTime();
+        this.lastLegTouchTimes.put(
+                player.getUUID(),
+                this.level().getGameTime()
+        );
 
         this.level().playSound(
                 null,
@@ -1215,13 +1489,11 @@ public class SoccerBallEntity extends Entity {
                 SoundEvents.PLAYER_ATTACK_STRONG,
                 SoundSource.PLAYERS,
                 0.82F,
-                0.90F + safeCharge * 0.25F
+                0.90F
+                        + safeCharge * 0.25F
         );
     }
 
-    /**
-     * Punto de contacto del tiro.
-     */
     private record KickContact(
             double verticalContact,
             double sideContact
@@ -1258,10 +1530,6 @@ public class SoccerBallEntity extends Entity {
                         rayEnd
                 );
 
-        /*
-         * Cuando el jugador levanta la cámara durante
-         * la carga, el rayo puede dejar de tocar el balón.
-         */
         if (possibleHit.isEmpty()) {
             return new KickContact(
                     0.0D,
@@ -1269,17 +1537,10 @@ public class SoccerBallEntity extends Entity {
             );
         }
 
-        Vec3 ballCenter =
-                this.position().add(
-                        0.0D,
-                        BALL_RADIUS,
-                        0.0D
-                );
-
         Vec3 relativeHit =
                 possibleHit.get()
                         .subtract(
-                                ballCenter
+                                getBallCenter()
                         );
 
         double verticalContact =
@@ -1306,16 +1567,28 @@ public class SoccerBallEntity extends Entity {
     }
 
     /**
-     * Actualiza la rotación visual según la distancia
-     * recorrida.
+     * Centro físico del balón.
+     */
+    private Vec3 getBallCenter() {
+        return this.position().add(
+                0.0D,
+                BALL_RADIUS,
+                0.0D
+        );
+    }
+
+    /**
+     * Actualiza la rotación visual.
      */
     public void updateVisualRolling(
             Vec3 actualMovement
     ) {
         double horizontalDistance =
                 Math.sqrt(
-                        actualMovement.x * actualMovement.x
-                                + actualMovement.z * actualMovement.z
+                        actualMovement.x
+                                * actualMovement.x
+                                + actualMovement.z
+                                * actualMovement.z
                 );
 
         if (horizontalDistance
@@ -1414,10 +1687,7 @@ public class SoccerBallEntity extends Entity {
             Entity entity
     ) {
         /*
-         * El mod controla manualmente las colisiones.
-         *
-         * No utilizar el empuje genérico de Minecraft,
-         * porque afectaría también al jugador.
+         * El mod controla manualmente los contactos.
          */
     }
 }

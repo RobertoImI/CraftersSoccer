@@ -14,7 +14,7 @@ import net.minecraft.world.phys.Vec3;
  * - Fricción.
  * - Resistencia del aire.
  * - Rebotes contra bloques.
- * - Colisiones contra jugadores.
+ * - Rebotes contra jugadores y entidades.
  * - Potencia de pases y tiros.
  */
 public final class SoccerBallPhysics {
@@ -45,9 +45,9 @@ public final class SoccerBallPhysics {
     public static final double WALL_BOUNCE = 0.65D;
 
     /**
-     * Rebote contra jugadores.
+     * Rebote contra jugadores, mobs y NPC.
      */
-    public static final double PLAYER_BOUNCE = 0.55D;
+    public static final double PLAYER_BOUNCE = 0.62D;
 
     /**
      * Velocidades mínimas antes de detener el balón.
@@ -66,7 +66,7 @@ public final class SoccerBallPhysics {
     private static final double MIN_KICK_POWER = 0.38D;
 
     /**
-     * Fuerza máxima horizontal de un tiro cargado.
+     * Fuerza máxima de un tiro cargado.
      */
     private static final double MAX_KICK_POWER = 1.45D;
 
@@ -100,27 +100,26 @@ public final class SoccerBallPhysics {
                 );
 
         /*
-         * Comprobar toda la trayectoria contra jugadores.
-         *
-         * Esto impide que tiros y pases rápidos atraviesen
-         * sus hitboxes.
+         * Comprobar la trayectoria completa contra
+         * jugadores, mobs y otras entidades vivas.
          */
-        SoccerBallEntity.PlayerCollisionResult playerCollision =
+        SoccerBallEntity.PlayerCollisionResult entityCollision =
                 ball.resolvePlayerCollision(
                         requestedVelocity
                 );
 
         Vec3 movementAttempt =
-                playerCollision.allowedMovement();
+                entityCollision.allowedMovement();
 
-        Vec3 velocityAfterPlayerCollision =
-                playerCollision.resultingVelocity();
+        Vec3 velocityAfterEntityCollision =
+                entityCollision.resultingVelocity();
 
         Vec3 previousPosition =
                 ball.position();
 
         /*
-         * Minecraft resuelve las colisiones contra bloques.
+         * Minecraft resuelve aquí las colisiones
+         * contra los bloques del mundo.
          */
         ball.move(
                 MoverType.SELF,
@@ -134,44 +133,44 @@ public final class SoccerBallPhysics {
                         );
 
         double velocityX =
-                velocityAfterPlayerCollision.x;
+                velocityAfterEntityCollision.x;
 
         double velocityY =
-                velocityAfterPlayerCollision.y;
+                velocityAfterEntityCollision.y;
 
         double velocityZ =
-                velocityAfterPlayerCollision.z;
+                velocityAfterEntityCollision.z;
 
         /*
-         * Comprobar si un bloque impidió el movimiento
-         * en el eje X.
+         * Detectar bloqueo contra una pared en X.
          */
         boolean blockedX =
                 Math.abs(movementAttempt.x) > 0.001D
                         && Math.abs(actualMovement.x)
-                        < Math.abs(movementAttempt.x) * 0.35D;
+                        < Math.abs(movementAttempt.x)
+                        * 0.35D;
 
         /*
-         * Comprobar si un bloque impidió el movimiento
-         * en el eje Z.
+         * Detectar bloqueo contra una pared en Z.
          */
         boolean blockedZ =
                 Math.abs(movementAttempt.z) > 0.001D
                         && Math.abs(actualMovement.z)
-                        < Math.abs(movementAttempt.z) * 0.35D;
+                        < Math.abs(movementAttempt.z)
+                        * 0.35D;
 
         /*
          * Rebote contra paredes.
          */
         if (blockedX) {
             velocityX =
-                    -velocityAfterPlayerCollision.x
+                    -velocityAfterEntityCollision.x
                             * WALL_BOUNCE;
         }
 
         if (blockedZ) {
             velocityZ =
-                    -velocityAfterPlayerCollision.z
+                    -velocityAfterEntityCollision.z
                             * WALL_BOUNCE;
         }
 
@@ -179,24 +178,18 @@ public final class SoccerBallPhysics {
          * Rebote contra suelo o techo.
          */
         if (ball.verticalCollision) {
-            if (velocityAfterPlayerCollision.y
+            if (velocityAfterEntityCollision.y
                     < -STOP_VERTICAL_SPEED) {
 
-                /*
-                 * Rebote contra el suelo.
-                 */
                 velocityY =
-                        -velocityAfterPlayerCollision.y
+                        -velocityAfterEntityCollision.y
                                 * FLOOR_BOUNCE;
 
-            } else if (velocityAfterPlayerCollision.y
+            } else if (velocityAfterEntityCollision.y
                     > STOP_VERTICAL_SPEED) {
 
-                /*
-                 * Rebote contra el techo.
-                 */
                 velocityY =
-                        -velocityAfterPlayerCollision.y
+                        -velocityAfterEntityCollision.y
                                 * WALL_BOUNCE;
 
             } else {
@@ -218,7 +211,7 @@ public final class SoccerBallPhysics {
         }
 
         /*
-         * Detener velocidades horizontales demasiado pequeñas.
+         * Detener movimientos horizontales muy pequeños.
          */
         if (ball.onGround()
                 && Math.abs(velocityX)
@@ -235,7 +228,7 @@ public final class SoccerBallPhysics {
         }
 
         /*
-         * Detener pequeños rebotes verticales.
+         * Detener rebotes verticales muy pequeños.
          */
         if (ball.onGround()
                 && Math.abs(velocityY)
@@ -255,9 +248,9 @@ public final class SoccerBallPhysics {
         );
 
         /*
-         * Indicar al servidor que la velocidad cambió.
+         * Sincronizar los cambios de velocidad.
          */
-        if (playerCollision.collided()
+        if (entityCollision.collided()
                 || actualMovement.lengthSqr()
                 > 0.000001D) {
 
@@ -265,8 +258,8 @@ public final class SoccerBallPhysics {
         }
 
         /*
-         * Actualizar la rotación visual utilizando
-         * el movimiento real.
+         * Actualizar la rotación visual con el movimiento
+         * que realmente consiguió realizar.
          */
         ball.updateVisualRolling(
                 actualMovement
@@ -274,7 +267,7 @@ public final class SoccerBallPhysics {
     }
 
     /**
-     * Limita la velocidad máxima absoluta.
+     * Limita la velocidad máxima del balón.
      */
     public static Vec3 clampVelocity(
             Vec3 velocity
@@ -287,17 +280,13 @@ public final class SoccerBallPhysics {
         }
 
         return velocity.normalize()
-                .scale(MAX_SPEED);
+                .scale(
+                        MAX_SPEED
+                );
     }
 
     /**
      * Calcula la potencia horizontal de un tiro.
-     *
-     * La curva diferencia claramente entre:
-     * - Clic rápido.
-     * - Pase corto.
-     * - Pase largo.
-     * - Tiro completamente cargado.
      */
     public static double getKickHorizontalPower(
             float charge
