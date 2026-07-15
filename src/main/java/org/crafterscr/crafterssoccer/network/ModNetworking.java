@@ -1,5 +1,6 @@
 package org.crafterscr.crafterssoccer.network;
 
+import org.crafterscr.crafterssoccer.client.ClientMatchState;
 import org.crafterscr.crafterssoccer.entity.SoccerBallEntity;
 
 import net.minecraft.server.level.ServerPlayer;
@@ -10,11 +11,11 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 /**
- * Registro de paquetes del mod.
+ * Registro de paquetes.
  */
 public final class ModNetworking {
 
-    private static final String NETWORK_VERSION = "1";
+    private static final String NETWORK_VERSION = "2";
 
     private ModNetworking() {
     }
@@ -32,11 +33,14 @@ public final class ModNetworking {
                 KickBallPayload.STREAM_CODEC,
                 ModNetworking::handleKickBall
         );
+
+        registrar.playToClient(
+                MatchStatePayload.TYPE,
+                MatchStatePayload.STREAM_CODEC,
+                ModNetworking::handleMatchState
+        );
     }
 
-    /**
-     * Procesar el tiro en el servidor.
-     */
     private static void handleKickBall(
             KickBallPayload payload,
             IPayloadContext context
@@ -56,15 +60,20 @@ public final class ModNetworking {
             return;
         }
 
-        /*
-         * El servidor vuelve a validar:
-         * - La existencia del balón.
-         * - La distancia.
-         * - La potencia.
-         */
         ball.kick(
                 player,
                 payload.charge()
+        );
+    }
+
+    private static void handleMatchState(
+            MatchStatePayload payload,
+            IPayloadContext context
+    ) {
+        context.enqueueWork(
+                () -> ClientMatchState.apply(
+                        payload
+                )
         );
     }
 }

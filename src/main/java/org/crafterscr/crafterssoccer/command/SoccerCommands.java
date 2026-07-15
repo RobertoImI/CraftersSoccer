@@ -2,49 +2,49 @@ package org.crafterscr.crafterssoccer.command;
 
 import java.util.Collection;
 import java.util.Locale;
+import java.util.Set;
+import java.util.UUID;
 
 import org.crafterscr.crafterssoccer.entity.SoccerBallEntity;
 import org.crafterscr.crafterssoccer.field.SoccerField;
 import org.crafterscr.crafterssoccer.field.SoccerFieldManager;
+import org.crafterscr.crafterssoccer.match.SoccerMatch;
+import org.crafterscr.crafterssoccer.match.SoccerMatchManager;
+import org.crafterscr.crafterssoccer.match.SoccerTeamSide;
 import org.crafterscr.crafterssoccer.registry.ModEntities;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 
 /**
- * Comandos administrativos de CraftersSoccer.
+ * Comandos administrativos.
  */
 public final class SoccerCommands {
 
-    /**
-     * Autocompletado con las canchas existentes.
-     */
     private static final SuggestionProvider<CommandSourceStack>
             FIELD_SUGGESTIONS =
-            (
-                    context,
-                    builder
-            ) -> {
+            (context, builder) -> {
 
                 for (SoccerField field
                         : SoccerFieldManager.getFields(
-                        context.getSource()
-                                .getServer()
+                        context.getSource().getServer()
                 )) {
-
                     builder.suggest(
                             field.getId()
                     );
@@ -68,35 +68,19 @@ public final class SoccerCommands {
                                 source ->
                                         source.hasPermission(2)
                         )
-
-                        /*
-                         * Comandos del balón.
-                         */
-                        .then(
-                                createBallCommands()
-                        )
-
-                        /*
-                         * Comandos de canchas.
-                         */
-                        .then(
-                                createFieldCommands()
-                        )
+                        .then(createBallCommands())
+                        .then(createFieldCommands())
+                        .then(createTeamCommands())
+                        .then(createMatchCommands())
         );
     }
 
-    /**
-     * Construye /soccer ball
-     */
     private static com.mojang.brigadier.builder
             .LiteralArgumentBuilder<CommandSourceStack>
     createBallCommands() {
 
         return Commands.literal("ball")
 
-                /*
-                 * /soccer ball spawn
-                 */
                 .then(
                         Commands.literal("spawn")
                                 .executes(
@@ -107,9 +91,6 @@ public final class SoccerCommands {
                                 )
                 )
 
-                /*
-                 * /soccer ball removeall
-                 */
                 .then(
                         Commands.literal("removeall")
                                 .executes(
@@ -121,18 +102,12 @@ public final class SoccerCommands {
                 );
     }
 
-    /**
-     * Construye /soccer field
-     */
     private static com.mojang.brigadier.builder
             .LiteralArgumentBuilder<CommandSourceStack>
     createFieldCommands() {
 
         return Commands.literal("field")
 
-                /*
-                 * /soccer field create <id>
-                 */
                 .then(
                         Commands.literal("create")
                                 .then(
@@ -153,9 +128,6 @@ public final class SoccerCommands {
                                 )
                 )
 
-                /*
-                 * /soccer field delete <id>
-                 */
                 .then(
                         Commands.literal("delete")
                                 .then(
@@ -164,17 +136,12 @@ public final class SoccerCommands {
                                                         context ->
                                                                 deleteField(
                                                                         context.getSource(),
-                                                                        getFieldId(
-                                                                                context
-                                                                        )
+                                                                        getFieldId(context)
                                                                 )
                                                 )
                                 )
                 )
 
-                /*
-                 * /soccer field list
-                 */
                 .then(
                         Commands.literal("list")
                                 .executes(
@@ -185,9 +152,6 @@ public final class SoccerCommands {
                                 )
                 )
 
-                /*
-                 * /soccer field info <id>
-                 */
                 .then(
                         Commands.literal("info")
                                 .then(
@@ -196,17 +160,12 @@ public final class SoccerCommands {
                                                         context ->
                                                                 showFieldInfo(
                                                                         context.getSource(),
-                                                                        getFieldId(
-                                                                                context
-                                                                        )
+                                                                        getFieldId(context)
                                                                 )
                                                 )
                                 )
                 )
 
-                /*
-                 * /soccer field pos1 <id>
-                 */
                 .then(
                         Commands.literal("pos1")
                                 .then(
@@ -215,18 +174,13 @@ public final class SoccerCommands {
                                                         context ->
                                                                 setFieldPosition(
                                                                         context.getSource(),
-                                                                        getFieldId(
-                                                                                context
-                                                                        ),
+                                                                        getFieldId(context),
                                                                         FieldPoint.FIELD_POSITION_1
                                                                 )
                                                 )
                                 )
                 )
 
-                /*
-                 * /soccer field pos2 <id>
-                 */
                 .then(
                         Commands.literal("pos2")
                                 .then(
@@ -235,18 +189,13 @@ public final class SoccerCommands {
                                                         context ->
                                                                 setFieldPosition(
                                                                         context.getSource(),
-                                                                        getFieldId(
-                                                                                context
-                                                                        ),
+                                                                        getFieldId(context),
                                                                         FieldPoint.FIELD_POSITION_2
                                                                 )
                                                 )
                                 )
                 )
 
-                /*
-                 * /soccer field center <id>
-                 */
                 .then(
                         Commands.literal("center")
                                 .then(
@@ -255,18 +204,13 @@ public final class SoccerCommands {
                                                         context ->
                                                                 setFieldPosition(
                                                                         context.getSource(),
-                                                                        getFieldId(
-                                                                                context
-                                                                        ),
+                                                                        getFieldId(context),
                                                                         FieldPoint.CENTER
                                                                 )
                                                 )
                                 )
                 )
 
-                /*
-                 * /soccer field ballspawn <id>
-                 */
                 .then(
                         Commands.literal("ballspawn")
                                 .then(
@@ -275,21 +219,47 @@ public final class SoccerCommands {
                                                         context ->
                                                                 setFieldPosition(
                                                                         context.getSource(),
-                                                                        getFieldId(
-                                                                                context
-                                                                        ),
+                                                                        getFieldId(context),
                                                                         FieldPoint.BALL_SPAWN
                                                                 )
                                                 )
                                 )
                 )
 
-                /*
-                 * /soccer field goal red pos1 <id>
-                 * /soccer field goal red pos2 <id>
-                 * /soccer field goal blue pos1 <id>
-                 * /soccer field goal blue pos2 <id>
-                 */
+                .then(
+                        Commands.literal("spawn")
+
+                                .then(
+                                        Commands.literal("red")
+                                                .then(
+                                                        fieldArgument()
+                                                                .executes(
+                                                                        context ->
+                                                                                setFieldPosition(
+                                                                                        context.getSource(),
+                                                                                        getFieldId(context),
+                                                                                        FieldPoint.RED_SPAWN
+                                                                                )
+                                                                )
+                                                )
+                                )
+
+                                .then(
+                                        Commands.literal("blue")
+                                                .then(
+                                                        fieldArgument()
+                                                                .executes(
+                                                                        context ->
+                                                                                setFieldPosition(
+                                                                                        context.getSource(),
+                                                                                        getFieldId(context),
+                                                                                        FieldPoint.BLUE_SPAWN
+                                                                                )
+                                                                )
+                                                )
+                                )
+                )
+
                 .then(
                         Commands.literal("goal")
 
@@ -304,9 +274,7 @@ public final class SoccerCommands {
                                                                                         context ->
                                                                                                 setFieldPosition(
                                                                                                         context.getSource(),
-                                                                                                        getFieldId(
-                                                                                                                context
-                                                                                                        ),
+                                                                                                        getFieldId(context),
                                                                                                         FieldPoint.RED_GOAL_POSITION_1
                                                                                                 )
                                                                                 )
@@ -321,9 +289,7 @@ public final class SoccerCommands {
                                                                                         context ->
                                                                                                 setFieldPosition(
                                                                                                         context.getSource(),
-                                                                                                        getFieldId(
-                                                                                                                context
-                                                                                                        ),
+                                                                                                        getFieldId(context),
                                                                                                         FieldPoint.RED_GOAL_POSITION_2
                                                                                                 )
                                                                                 )
@@ -342,9 +308,7 @@ public final class SoccerCommands {
                                                                                         context ->
                                                                                                 setFieldPosition(
                                                                                                         context.getSource(),
-                                                                                                        getFieldId(
-                                                                                                                context
-                                                                                                        ),
+                                                                                                        getFieldId(context),
                                                                                                         FieldPoint.BLUE_GOAL_POSITION_1
                                                                                                 )
                                                                                 )
@@ -359,9 +323,7 @@ public final class SoccerCommands {
                                                                                         context ->
                                                                                                 setFieldPosition(
                                                                                                         context.getSource(),
-                                                                                                        getFieldId(
-                                                                                                                context
-                                                                                                        ),
+                                                                                                        getFieldId(context),
                                                                                                         FieldPoint.BLUE_GOAL_POSITION_2
                                                                                                 )
                                                                                 )
@@ -370,9 +332,6 @@ public final class SoccerCommands {
                                 )
                 )
 
-                /*
-                 * /soccer field clear <id> <point>
-                 */
                 .then(
                         Commands.literal("clear")
                                 .then(
@@ -383,10 +342,7 @@ public final class SoccerCommands {
                                                                         StringArgumentType.word()
                                                                 )
                                                                 .suggests(
-                                                                        (
-                                                                                context,
-                                                                                builder
-                                                                        ) -> {
+                                                                        (context, builder) -> {
 
                                                                             for (FieldPoint point
                                                                                     : FieldPoint.values()) {
@@ -403,9 +359,7 @@ public final class SoccerCommands {
                                                                         context ->
                                                                                 clearFieldPoint(
                                                                                         context.getSource(),
-                                                                                        getFieldId(
-                                                                                                context
-                                                                                        ),
+                                                                                        getFieldId(context),
                                                                                         StringArgumentType.getString(
                                                                                                 context,
                                                                                                 "point"
@@ -417,9 +371,173 @@ public final class SoccerCommands {
                 );
     }
 
-    /**
-     * Argumento reutilizable de ID de cancha.
-     */
+    private static com.mojang.brigadier.builder
+            .LiteralArgumentBuilder<CommandSourceStack>
+    createTeamCommands() {
+
+        return Commands.literal("team")
+
+                .then(
+                        Commands.literal("red")
+                                .then(
+                                        Commands.literal("add")
+                                                .then(
+                                                        Commands.argument(
+                                                                        "player",
+                                                                        EntityArgument.player()
+                                                                )
+                                                                .executes(
+                                                                        context ->
+                                                                                addPlayerToTeam(
+                                                                                        context.getSource(),
+                                                                                        EntityArgument.getPlayer(
+                                                                                                context,
+                                                                                                "player"
+                                                                                        ),
+                                                                                        SoccerTeamSide.RED
+                                                                                )
+                                                                )
+                                                )
+                                )
+                )
+
+                .then(
+                        Commands.literal("blue")
+                                .then(
+                                        Commands.literal("add")
+                                                .then(
+                                                        Commands.argument(
+                                                                        "player",
+                                                                        EntityArgument.player()
+                                                                )
+                                                                .executes(
+                                                                        context ->
+                                                                                addPlayerToTeam(
+                                                                                        context.getSource(),
+                                                                                        EntityArgument.getPlayer(
+                                                                                                context,
+                                                                                                "player"
+                                                                                        ),
+                                                                                        SoccerTeamSide.BLUE
+                                                                                )
+                                                                )
+                                                )
+                                )
+                )
+
+                .then(
+                        Commands.literal("remove")
+                                .then(
+                                        Commands.argument(
+                                                        "player",
+                                                        EntityArgument.player()
+                                                )
+                                                .executes(
+                                                        context ->
+                                                                removePlayerFromTeam(
+                                                                        context.getSource(),
+                                                                        EntityArgument.getPlayer(
+                                                                                context,
+                                                                                "player"
+                                                                        )
+                                                                )
+                                                )
+                                )
+                )
+
+                .then(
+                        Commands.literal("list")
+                                .executes(
+                                        context ->
+                                                listTeams(
+                                                        context.getSource()
+                                                )
+                                )
+                );
+    }
+
+    private static com.mojang.brigadier.builder
+            .LiteralArgumentBuilder<CommandSourceStack>
+    createMatchCommands() {
+
+        return Commands.literal("match")
+
+                .then(
+                        Commands.literal("start")
+                                .then(
+                                        fieldArgument()
+                                                .executes(
+                                                        context ->
+                                                                startMatch(
+                                                                        context.getSource(),
+                                                                        getFieldId(context),
+                                                                        10
+                                                                )
+                                                )
+                                                .then(
+                                                        Commands.argument(
+                                                                        "minutes",
+                                                                        IntegerArgumentType.integer(
+                                                                                1,
+                                                                                120
+                                                                        )
+                                                                )
+                                                                .executes(
+                                                                        context ->
+                                                                                startMatch(
+                                                                                        context.getSource(),
+                                                                                        getFieldId(context),
+                                                                                        IntegerArgumentType.getInteger(
+                                                                                                context,
+                                                                                                "minutes"
+                                                                                        )
+                                                                                )
+                                                                )
+                                                )
+                                )
+                )
+
+                .then(
+                        Commands.literal("pause")
+                                .executes(
+                                        context ->
+                                                pauseMatch(
+                                                        context.getSource()
+                                                )
+                                )
+                )
+
+                .then(
+                        Commands.literal("resume")
+                                .executes(
+                                        context ->
+                                                resumeMatch(
+                                                        context.getSource()
+                                                )
+                                )
+                )
+
+                .then(
+                        Commands.literal("stop")
+                                .executes(
+                                        context ->
+                                                stopMatch(
+                                                        context.getSource()
+                                                )
+                                )
+                )
+
+                .then(
+                        Commands.literal("status")
+                                .executes(
+                                        context ->
+                                                showMatchStatus(
+                                                        context.getSource()
+                                                )
+                                )
+                );
+    }
+
     private static com.mojang.brigadier.builder
             .RequiredArgumentBuilder<
             CommandSourceStack,
@@ -431,14 +549,11 @@ public final class SoccerCommands {
                         "id",
                         StringArgumentType.word()
                 )
-                .suggests(
-                        FIELD_SUGGESTIONS
-                );
+                .suggests(FIELD_SUGGESTIONS);
     }
 
     private static String getFieldId(
-            com.mojang.brigadier.context
-                    .CommandContext<CommandSourceStack> context
+            CommandContext<CommandSourceStack> context
     ) {
         return StringArgumentType.getString(
                 context,
@@ -446,9 +561,6 @@ public final class SoccerCommands {
         );
     }
 
-    /**
-     * Crear una cancha.
-     */
     private static int createField(
             CommandSourceStack source,
             String requestedId
@@ -457,16 +569,6 @@ public final class SoccerCommands {
                 SoccerFieldManager.normalizeId(
                         requestedId
                 );
-
-        if (normalizedId.isBlank()) {
-            source.sendFailure(
-                    Component.literal(
-                            "§cEl ID de la cancha no es válido."
-                    )
-            );
-
-            return 0;
-        }
 
         String dimensionId =
                 source.getLevel()
@@ -484,9 +586,8 @@ public final class SoccerCommands {
         if (field == null) {
             source.sendFailure(
                     Component.literal(
-                            "§cYa existe una cancha con el ID §f"
-                                    + normalizedId
-                                    + "§c."
+                            "§cNo se pudo crear la cancha. "
+                                    + "Puede que el ID ya exista."
                     )
             );
 
@@ -497,52 +598,29 @@ public final class SoccerCommands {
                 () -> Component.literal(
                         "§aCancha creada: §f"
                                 + field.getId()
-                                + "\n§7Dimensión: §f"
-                                + dimensionId
                 ),
                 true
-        );
-
-        source.sendSuccess(
-                () -> Component.literal(
-                        "§eAhora marca sus puntos con "
-                                + "/soccer field pos1 "
-                                + field.getId()
-                ),
-                false
         );
 
         return 1;
     }
 
-    /**
-     * Eliminar una cancha.
-     */
     private static int deleteField(
             CommandSourceStack source,
             String fieldId
     ) {
-        boolean removed =
-                SoccerFieldManager.removeField(
-                        source.getServer(),
-                        fieldId
-                );
-
-        if (!removed) {
-            sendFieldNotFound(
-                    source,
-                    fieldId
-            );
-
+        if (!SoccerFieldManager.removeField(
+                source.getServer(),
+                fieldId
+        )) {
+            sendFieldNotFound(source, fieldId);
             return 0;
         }
 
         source.sendSuccess(
                 () -> Component.literal(
                         "§eCancha eliminada: §f"
-                                + SoccerFieldManager.normalizeId(
-                                fieldId
-                        )
+                                + fieldId
                 ),
                 true
         );
@@ -550,9 +628,6 @@ public final class SoccerCommands {
         return 1;
     }
 
-    /**
-     * Listar canchas.
-     */
     private static int listFields(
             CommandSourceStack source
     ) {
@@ -572,20 +647,13 @@ public final class SoccerCommands {
             return 0;
         }
 
-        source.sendSuccess(
-                () -> Component.literal(
-                        "§6§lCanchas registradas §7("
-                                + fields.size()
-                                + ")"
-                ),
-                false
-        );
-
         for (SoccerField field : fields) {
             String status =
-                    field.isComplete()
-                            ? "§aCOMPLETA"
-                            : "§eINCOMPLETA";
+                    field.isMatchReady()
+                            ? "§aLISTA"
+                            : field.isComplete()
+                            ? "§eFALTAN SPAWNS"
+                            : "§cINCOMPLETA";
 
             source.sendSuccess(
                     () -> Component.literal(
@@ -602,9 +670,6 @@ public final class SoccerCommands {
         return fields.size();
     }
 
-    /**
-     * Mostrar información de una cancha.
-     */
     private static int showFieldInfo(
             CommandSourceStack source,
             String fieldId
@@ -623,14 +688,6 @@ public final class SoccerCommands {
                 () -> Component.literal(
                         "§6§lCancha: §f"
                                 + field.getId()
-                ),
-                false
-        );
-
-        source.sendSuccess(
-                () -> Component.literal(
-                        "§7Dimensión: §f"
-                                + field.getDimensionId()
                 ),
                 false
         );
@@ -661,6 +718,18 @@ public final class SoccerCommands {
 
         sendPointStatus(
                 source,
+                "Spawn rojo",
+                field.getRedSpawn()
+        );
+
+        sendPointStatus(
+                source,
+                "Spawn azul",
+                field.getBlueSpawn()
+        );
+
+        sendPointStatus(
+                source,
                 "Portería roja 1",
                 field.getRedGoalPosition1()
         );
@@ -685,9 +754,9 @@ public final class SoccerCommands {
 
         source.sendSuccess(
                 () -> Component.literal(
-                        field.isComplete()
-                                ? "§aLa cancha está completa y preparada."
-                                : "§eLa cancha todavía está incompleta."
+                        field.isMatchReady()
+                                ? "§aLa cancha está lista para partidos."
+                                : "§eLa cancha todavía no está lista."
                 ),
                 false
         );
@@ -695,13 +764,10 @@ public final class SoccerCommands {
         return 1;
     }
 
-    /**
-     * Establecer uno de los puntos.
-     */
     private static int setFieldPosition(
             CommandSourceStack source,
             String fieldId,
-            FieldPoint fieldPoint
+            FieldPoint point
     ) {
         SoccerField field =
                 getRequiredField(
@@ -724,9 +790,8 @@ public final class SoccerCommands {
 
             source.sendFailure(
                     Component.literal(
-                            "§cEsta cancha pertenece a la dimensión §f"
+                            "§cLa cancha pertenece a §f"
                                     + field.getDimensionId()
-                                    + "§c."
                     )
             );
 
@@ -734,11 +799,9 @@ public final class SoccerCommands {
         }
 
         BlockPos position =
-                getSourceBlockPosition(
-                        source
-                );
+                getSourceBlockPosition(source);
 
-        fieldPoint.set(
+        point.set(
                 field,
                 position
         );
@@ -750,30 +813,16 @@ public final class SoccerCommands {
         source.sendSuccess(
                 () -> Component.literal(
                         "§a"
-                                + fieldPoint.displayName
+                                + point.displayName
                                 + " establecido en §f"
                                 + formatPosition(position)
-                                + "§a para §f"
-                                + field.getId()
                 ),
                 true
         );
 
-        if (field.isComplete()) {
-            source.sendSuccess(
-                    () -> Component.literal(
-                            "§a§lLa cancha ya está completa."
-                    ),
-                    true
-            );
-        }
-
         return 1;
     }
 
-    /**
-     * Borrar un punto individual.
-     */
     private static int clearFieldPoint(
             CommandSourceStack source,
             String fieldId,
@@ -789,12 +838,12 @@ public final class SoccerCommands {
             return 0;
         }
 
-        FieldPoint selectedPoint =
+        FieldPoint selected =
                 FieldPoint.fromCommandName(
                         pointName
                 );
 
-        if (selectedPoint == null) {
+        if (selected == null) {
             source.sendFailure(
                     Component.literal(
                             "§cPunto desconocido: §f"
@@ -805,7 +854,7 @@ public final class SoccerCommands {
             return 0;
         }
 
-        selectedPoint.set(
+        selected.set(
                 field,
                 null
         );
@@ -816,10 +865,8 @@ public final class SoccerCommands {
 
         source.sendSuccess(
                 () -> Component.literal(
-                        "§eSe eliminó §f"
-                                + selectedPoint.displayName
-                                + "§e de la cancha §f"
-                                + field.getId()
+                        "§ePunto eliminado: §f"
+                                + selected.displayName
                 ),
                 true
         );
@@ -827,9 +874,309 @@ public final class SoccerCommands {
         return 1;
     }
 
-    /**
-     * Obtiene una cancha y muestra un error si no existe.
-     */
+    private static int addPlayerToTeam(
+            CommandSourceStack source,
+            ServerPlayer player,
+            SoccerTeamSide side
+    ) {
+        SoccerMatchManager.addPlayer(
+                source.getServer(),
+                player,
+                side
+        );
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§a"
+                                + player.getGameProfile().getName()
+                                + " ahora pertenece al equipo §f"
+                                + side.getDisplayName()
+                ),
+                true
+        );
+
+        return 1;
+    }
+
+    private static int removePlayerFromTeam(
+            CommandSourceStack source,
+            ServerPlayer player
+    ) {
+        if (!SoccerMatchManager.removePlayer(
+                source.getServer(),
+                player.getUUID()
+        )) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cEl jugador no pertenece a ningún equipo."
+                    )
+            );
+
+            return 0;
+        }
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§eJugador eliminado de su equipo: §f"
+                                + player.getGameProfile().getName()
+                ),
+                true
+        );
+
+        return 1;
+    }
+
+    private static int listTeams(
+            CommandSourceStack source
+    ) {
+        MinecraftServer server =
+                source.getServer();
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§c§lEQUIPO ROJO"
+                ),
+                false
+        );
+
+        sendPlayerSet(
+                source,
+                server,
+                SoccerMatchManager.getRedPlayers(server)
+        );
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§9§lEQUIPO AZUL"
+                ),
+                false
+        );
+
+        sendPlayerSet(
+                source,
+                server,
+                SoccerMatchManager.getBluePlayers(server)
+        );
+
+        return 1;
+    }
+
+    private static void sendPlayerSet(
+            CommandSourceStack source,
+            MinecraftServer server,
+            Set<UUID> players
+    ) {
+        if (players.isEmpty()) {
+            source.sendSuccess(
+                    () -> Component.literal(
+                            "§8- §7Vacío"
+                    ),
+                    false
+            );
+
+            return;
+        }
+
+        for (UUID playerId : players) {
+            ServerPlayer player =
+                    server.getPlayerList()
+                            .getPlayer(playerId);
+
+            String name =
+                    player == null
+                            ? playerId.toString()
+                            : player.getGameProfile().getName();
+
+            source.sendSuccess(
+                    () -> Component.literal(
+                            "§8- §f" + name
+                    ),
+                    false
+            );
+        }
+    }
+
+    private static int startMatch(
+            CommandSourceStack source,
+            String fieldId,
+            int minutes
+    ) {
+        SoccerField field =
+                getRequiredField(
+                        source,
+                        fieldId
+                );
+
+        if (field == null) {
+            return 0;
+        }
+
+        if (!field.isMatchReady()) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cLa cancha no está lista. "
+                                    + "Debes configurar los spawns rojo y azul."
+                    )
+            );
+
+            return 0;
+        }
+
+        if (!SoccerMatchManager.startMatch(
+                source.getServer(),
+                field,
+                minutes
+        )) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cYa existe un partido activo."
+                    )
+            );
+
+            return 0;
+        }
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§aPartido iniciado en §f"
+                                + field.getId()
+                                + "§a por §f"
+                                + minutes
+                                + " minutos."
+                ),
+                true
+        );
+
+        return 1;
+    }
+
+    private static int pauseMatch(
+            CommandSourceStack source
+    ) {
+        if (!SoccerMatchManager.pauseMatch(
+                source.getServer()
+        )) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cNo hay un partido que pueda pausarse."
+                    )
+            );
+
+            return 0;
+        }
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§ePartido pausado."
+                ),
+                true
+        );
+
+        return 1;
+    }
+
+    private static int resumeMatch(
+            CommandSourceStack source
+    ) {
+        if (!SoccerMatchManager.resumeMatch(
+                source.getServer()
+        )) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cNo hay un partido pausado."
+                    )
+            );
+
+            return 0;
+        }
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§aPartido reanudado."
+                ),
+                true
+        );
+
+        return 1;
+    }
+
+    private static int stopMatch(
+            CommandSourceStack source
+    ) {
+        if (!SoccerMatchManager.stopMatch(
+                source.getServer()
+        )) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cNo hay un partido activo."
+                    )
+            );
+
+            return 0;
+        }
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§ePartido detenido."
+                ),
+                true
+        );
+
+        return 1;
+    }
+
+    private static int showMatchStatus(
+            CommandSourceStack source
+    ) {
+        SoccerMatch match =
+                SoccerMatchManager.getActiveMatch(
+                        source.getServer()
+                );
+
+        if (match == null) {
+            source.sendSuccess(
+                    () -> Component.literal(
+                            "§7No hay un partido activo."
+                    ),
+                    false
+            );
+
+            return 0;
+        }
+
+        int totalSeconds =
+                match.getRemainingTicks() / 20;
+
+        int minutes =
+                totalSeconds / 60;
+
+        int seconds =
+                totalSeconds % 60;
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§6§lPartido activo\n"
+                                + "§7Cancha: §f"
+                                + match.getFieldId()
+                                + "\n§7Estado: §f"
+                                + match.getState().name()
+                                + "\n§7Marcador: §c"
+                                + match.getRedScore()
+                                + " §f- §9"
+                                + match.getBlueScore()
+                                + "\n§7Tiempo: §f"
+                                + String.format(
+                                "%02d:%02d",
+                                minutes,
+                                seconds
+                        )
+                ),
+                false
+        );
+
+        return 1;
+    }
+
     private static SoccerField getRequiredField(
             CommandSourceStack source,
             String fieldId
@@ -860,15 +1207,10 @@ public final class SoccerCommands {
                                 + SoccerFieldManager.normalizeId(
                                 fieldId
                         )
-                                + "§c."
                 )
         );
     }
 
-    /**
-     * Obtiene la posición del jugador o del origen
-     * que ejecutó el comando.
-     */
     private static BlockPos getSourceBlockPosition(
             CommandSourceStack source
     ) {
@@ -897,9 +1239,7 @@ public final class SoccerCommands {
                                 position == null
                                         ? "§cNO DEFINIDO"
                                         : "§f"
-                                        + formatPosition(
-                                        position
-                                )
+                                        + formatPosition(position)
                         )
                 ),
                 false
@@ -916,9 +1256,6 @@ public final class SoccerCommands {
                 + position.getZ();
     }
 
-    /**
-     * Crear un balón frente al jugador.
-     */
     private static int spawnBall(
             CommandSourceStack source
     ) {
@@ -937,13 +1274,11 @@ public final class SoccerCommands {
             ServerPlayer player =
                     source.getPlayerOrException();
 
-            Vec3 look =
-                    player.getLookAngle();
-
             spawnPosition =
                     player.getEyePosition()
                             .add(
-                                    look.scale(1.8D)
+                                    player.getLookAngle()
+                                            .scale(1.8D)
                             )
                             .add(
                                     0.0D,
@@ -974,9 +1309,6 @@ public final class SoccerCommands {
         return 1;
     }
 
-    /**
-     * Eliminar todos los balones de la dimensión.
-     */
     private static int removeAllBalls(
             CommandSourceStack source
     ) {
@@ -985,19 +1317,14 @@ public final class SoccerCommands {
 
         int removed = 0;
 
-        for (Entity entity
-                : level.getAllEntities()) {
-
-            if (entity
-                    instanceof SoccerBallEntity ball) {
-
+        for (Entity entity : level.getAllEntities()) {
+            if (entity instanceof SoccerBallEntity ball) {
                 ball.discard();
                 removed++;
             }
         }
 
-        int finalRemoved =
-                removed;
+        int finalRemoved = removed;
 
         source.sendSuccess(
                 () -> Component.literal(
@@ -1010,9 +1337,6 @@ public final class SoccerCommands {
         return removed;
     }
 
-    /**
-     * Puntos configurables de la cancha.
-     */
     private enum FieldPoint {
 
         FIELD_POSITION_1(
@@ -1024,9 +1348,7 @@ public final class SoccerCommands {
                     SoccerField field,
                     BlockPos position
             ) {
-                field.setFieldPosition1(
-                        position
-                );
+                field.setFieldPosition1(position);
             }
         },
 
@@ -1039,9 +1361,7 @@ public final class SoccerCommands {
                     SoccerField field,
                     BlockPos position
             ) {
-                field.setFieldPosition2(
-                        position
-                );
+                field.setFieldPosition2(position);
             }
         },
 
@@ -1054,9 +1374,7 @@ public final class SoccerCommands {
                     SoccerField field,
                     BlockPos position
             ) {
-                field.setCenter(
-                        position
-                );
+                field.setCenter(position);
             }
         },
 
@@ -1069,9 +1387,33 @@ public final class SoccerCommands {
                     SoccerField field,
                     BlockPos position
             ) {
-                field.setBallSpawn(
-                        position
-                );
+                field.setBallSpawn(position);
+            }
+        },
+
+        RED_SPAWN(
+                "red_spawn",
+                "Spawn rojo"
+        ) {
+            @Override
+            void set(
+                    SoccerField field,
+                    BlockPos position
+            ) {
+                field.setRedSpawn(position);
+            }
+        },
+
+        BLUE_SPAWN(
+                "blue_spawn",
+                "Spawn azul"
+        ) {
+            @Override
+            void set(
+                    SoccerField field,
+                    BlockPos position
+            ) {
+                field.setBlueSpawn(position);
             }
         },
 
@@ -1084,9 +1426,7 @@ public final class SoccerCommands {
                     SoccerField field,
                     BlockPos position
             ) {
-                field.setRedGoalPosition1(
-                        position
-                );
+                field.setRedGoalPosition1(position);
             }
         },
 
@@ -1099,9 +1439,7 @@ public final class SoccerCommands {
                     SoccerField field,
                     BlockPos position
             ) {
-                field.setRedGoalPosition2(
-                        position
-                );
+                field.setRedGoalPosition2(position);
             }
         },
 
@@ -1114,9 +1452,7 @@ public final class SoccerCommands {
                     SoccerField field,
                     BlockPos position
             ) {
-                field.setBlueGoalPosition1(
-                        position
-                );
+                field.setBlueGoalPosition1(position);
             }
         },
 
@@ -1129,9 +1465,7 @@ public final class SoccerCommands {
                     SoccerField field,
                     BlockPos position
             ) {
-                field.setBlueGoalPosition2(
-                        position
-                );
+                field.setBlueGoalPosition2(position);
             }
         };
 
@@ -1142,11 +1476,8 @@ public final class SoccerCommands {
                 String commandName,
                 String displayName
         ) {
-            this.commandName =
-                    commandName;
-
-            this.displayName =
-                    displayName;
+            this.commandName = commandName;
+            this.displayName = displayName;
         }
 
         abstract void set(
@@ -1157,15 +1488,13 @@ public final class SoccerCommands {
         private static FieldPoint fromCommandName(
                 String requestedName
         ) {
-            String normalizedName =
+            String normalized =
                     requestedName.toLowerCase(
                             Locale.ROOT
                     );
 
             for (FieldPoint point : values()) {
-                if (point.commandName.equals(
-                        normalizedName
-                )) {
+                if (point.commandName.equals(normalized)) {
                     return point;
                 }
             }

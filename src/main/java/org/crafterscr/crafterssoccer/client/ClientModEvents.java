@@ -21,9 +21,6 @@ public final class ClientModEvents {
     private ClientModEvents() {
     }
 
-    /**
-     * Eventos del bus de registro del mod.
-     */
     @EventBusSubscriber(
             modid = CraftersSoccer.MOD_ID,
             bus = EventBusSubscriber.Bus.MOD,
@@ -34,9 +31,6 @@ public final class ClientModEvents {
         private ModBusEvents() {
         }
 
-        /**
-         * Registrar el renderer del balón.
-         */
         @SubscribeEvent
         public static void registerEntityRenderers(
                 EntityRenderersEvent.RegisterRenderers event
@@ -47,9 +41,6 @@ public final class ClientModEvents {
             );
         }
 
-        /**
-         * Registrar la geometría del modelo.
-         */
         @SubscribeEvent
         public static void registerLayerDefinitions(
                 EntityRenderersEvent.RegisterLayerDefinitions event
@@ -60,16 +51,18 @@ public final class ClientModEvents {
             );
         }
 
-        /**
-         * Registrar elementos personalizados del HUD.
-         */
         @SubscribeEvent
         public static void registerGuiLayers(
                 RegisterGuiLayersEvent event
         ) {
-            /*
-             * Barra de potencia.
-             */
+            event.registerAboveAll(
+                    ResourceLocation.fromNamespaceAndPath(
+                            CraftersSoccer.MOD_ID,
+                            "soccer_match_hud"
+                    ),
+                    SoccerMatchHud::render
+            );
+
             event.registerAboveAll(
                     ResourceLocation.fromNamespaceAndPath(
                             CraftersSoccer.MOD_ID,
@@ -78,9 +71,6 @@ public final class ClientModEvents {
                     SoccerPowerBarGui::render
             );
 
-            /*
-             * Indicador de cruceta.
-             */
             event.registerAboveAll(
                     ResourceLocation.fromNamespaceAndPath(
                             CraftersSoccer.MOD_ID,
@@ -91,9 +81,6 @@ public final class ClientModEvents {
         }
     }
 
-    /**
-     * Eventos normales del juego.
-     */
     @EventBusSubscriber(
             modid = CraftersSoccer.MOD_ID,
             bus = EventBusSubscriber.Bus.GAME,
@@ -104,16 +91,22 @@ public final class ClientModEvents {
         private GameBusEvents() {
         }
 
-        /**
-         * Actualizar el control del tiro cada tick.
-         */
         @SubscribeEvent
         public static void onClientTick(
                 ClientTickEvent.Post event
         ) {
+            Minecraft minecraft =
+                    Minecraft.getInstance();
+
             ClientSoccerState.clientTick(
-                    Minecraft.getInstance()
+                    minecraft
             );
+
+            if (minecraft.player == null
+                    || minecraft.level == null) {
+
+                ClientMatchState.reset();
+            }
         }
     }
 }

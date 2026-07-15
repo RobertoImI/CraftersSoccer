@@ -24,11 +24,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
 
 /**
- * Administra todas las canchas registradas.
- *
- * La información se guarda dentro del mundo:
- *
- * serverconfig/crafterssoccer/fields.json
+ * Almacena las canchas registradas.
  */
 public final class SoccerFieldManager {
 
@@ -38,35 +34,16 @@ public final class SoccerFieldManager {
                     .disableHtmlEscaping()
                     .create();
 
-    /**
-     * Canchas cargadas por identificador normalizado.
-     */
     private static final Map<String, SoccerField> FIELDS =
             new LinkedHashMap<>();
 
-    /**
-     * Servidor cuya información está cargada actualmente.
-     */
     private static MinecraftServer loadedServer;
-
-    /**
-     * Evita intentar cargar repetidamente durante
-     * la misma sesión.
-     */
     private static boolean loaded;
 
     private SoccerFieldManager() {
     }
 
-    /**
-     * Normaliza un ID.
-     *
-     * Ejemplo:
-     * Estadio Principal -> estadio_principal
-     */
-    public static String normalizeId(
-            String id
-    ) {
+    public static String normalizeId(String id) {
         if (id == null) {
             return "";
         }
@@ -76,10 +53,6 @@ public final class SoccerFieldManager {
                 .replace(' ', '_');
     }
 
-    /**
-     * Carga los archivos si todavía no fueron cargados
-     * para el servidor actual.
-     */
     public static void ensureLoaded(
             MinecraftServer server
     ) {
@@ -87,8 +60,7 @@ public final class SoccerFieldManager {
             return;
         }
 
-        if (loaded
-                && loadedServer == server) {
+        if (loaded && loadedServer == server) {
             return;
         }
 
@@ -100,11 +72,6 @@ public final class SoccerFieldManager {
         load(server);
     }
 
-    /**
-     * Crea una cancha.
-     *
-     * Devuelve null si ya existe.
-     */
     public static SoccerField createField(
             MinecraftServer server,
             String requestedId,
@@ -136,9 +103,6 @@ public final class SoccerFieldManager {
         return field;
     }
 
-    /**
-     * Busca una cancha por ID.
-     */
     public static SoccerField getField(
             MinecraftServer server,
             String requestedId
@@ -150,22 +114,6 @@ public final class SoccerFieldManager {
         );
     }
 
-    /**
-     * Devuelve true si existe la cancha.
-     */
-    public static boolean containsField(
-            MinecraftServer server,
-            String requestedId
-    ) {
-        return getField(
-                server,
-                requestedId
-        ) != null;
-    }
-
-    /**
-     * Obtiene todas las canchas.
-     */
     public static Collection<SoccerField> getFields(
             MinecraftServer server
     ) {
@@ -185,9 +133,6 @@ public final class SoccerFieldManager {
         return List.copyOf(result);
     }
 
-    /**
-     * Elimina una cancha.
-     */
     public static boolean removeField(
             MinecraftServer server,
             String requestedId
@@ -207,35 +152,23 @@ public final class SoccerFieldManager {
         return true;
     }
 
-    /**
-     * Guarda todos los cambios.
-     */
     public static void save(
             MinecraftServer server
     ) {
         ensureLoaded(server);
 
-        Path file =
-                getFieldsFile(server);
-
-        Path directory =
-                file.getParent();
+        Path file = getFieldsFile(server);
+        Path directory = file.getParent();
 
         try {
-            Files.createDirectories(
-                    directory
-            );
+            Files.createDirectories(directory);
 
             FieldStorageData storageData =
                     new FieldStorageData();
 
-            for (SoccerField field
-                    : FIELDS.values()) {
-
+            for (SoccerField field : FIELDS.values()) {
                 storageData.fields.add(
-                        FieldData.fromField(
-                                field
-                        )
+                        FieldData.fromField(field)
                 );
             }
 
@@ -263,7 +196,7 @@ public final class SoccerFieldManager {
                         StandardCopyOption.ATOMIC_MOVE
                 );
 
-            } catch (IOException atomicMoveFailure) {
+            } catch (IOException ignored) {
                 Files.move(
                         temporaryFile,
                         file,
@@ -273,8 +206,7 @@ public final class SoccerFieldManager {
 
         } catch (IOException exception) {
             System.err.println(
-                    "["
-                            + CraftersSoccer.MOD_ID
+                    "[" + CraftersSoccer.MOD_ID
                             + "] No se pudieron guardar las canchas."
             );
 
@@ -282,14 +214,10 @@ public final class SoccerFieldManager {
         }
     }
 
-    /**
-     * Carga las canchas guardadas.
-     */
     private static void load(
             MinecraftServer server
     ) {
-        Path file =
-                getFieldsFile(server);
+        Path file = getFieldsFile(server);
 
         if (!Files.exists(file)) {
             return;
@@ -309,28 +237,22 @@ public final class SoccerFieldManager {
                 return;
             }
 
-            for (FieldData data
-                    : storageData.fields) {
-
-                SoccerField field =
-                        data.toField();
+            for (FieldData data : storageData.fields) {
+                SoccerField field = data.toField();
 
                 if (field == null) {
                     continue;
                 }
 
                 FIELDS.put(
-                        normalizeId(
-                                field.getId()
-                        ),
+                        normalizeId(field.getId()),
                         field
                 );
             }
 
         } catch (Exception exception) {
             System.err.println(
-                    "["
-                            + CraftersSoccer.MOD_ID
+                    "[" + CraftersSoccer.MOD_ID
                             + "] No se pudieron cargar las canchas."
             );
 
@@ -338,9 +260,6 @@ public final class SoccerFieldManager {
         }
     }
 
-    /**
-     * Devuelve la ruta del archivo.
-     */
     private static Path getFieldsFile(
             MinecraftServer server
     ) {
@@ -352,20 +271,14 @@ public final class SoccerFieldManager {
                 .resolve("fields.json");
     }
 
-    /**
-     * Contenedor raíz del JSON.
-     */
     private static final class FieldStorageData {
 
-        private int version = 1;
+        private int version = 2;
 
         private List<FieldData> fields =
                 new ArrayList<>();
     }
 
-    /**
-     * Representación serializable de una cancha.
-     */
     private static final class FieldData {
 
         private String id;
@@ -377,6 +290,9 @@ public final class SoccerFieldManager {
         private PositionData center;
         private PositionData ballSpawn;
 
+        private PositionData redSpawn;
+        private PositionData blueSpawn;
+
         private PositionData redGoalPosition1;
         private PositionData redGoalPosition2;
 
@@ -386,14 +302,10 @@ public final class SoccerFieldManager {
         private static FieldData fromField(
                 SoccerField field
         ) {
-            FieldData data =
-                    new FieldData();
+            FieldData data = new FieldData();
 
-            data.id =
-                    field.getId();
-
-            data.dimension =
-                    field.getDimensionId();
+            data.id = field.getId();
+            data.dimension = field.getDimensionId();
 
             data.fieldPosition1 =
                     PositionData.fromBlockPos(
@@ -413,6 +325,16 @@ public final class SoccerFieldManager {
             data.ballSpawn =
                     PositionData.fromBlockPos(
                             field.getBallSpawn()
+                    );
+
+            data.redSpawn =
+                    PositionData.fromBlockPos(
+                            field.getRedSpawn()
+                    );
+
+            data.blueSpawn =
+                    PositionData.fromBlockPos(
+                            field.getBlueSpawn()
                     );
 
             data.redGoalPosition1 =
@@ -440,9 +362,7 @@ public final class SoccerFieldManager {
 
         private SoccerField toField() {
             String normalizedId =
-                    SoccerFieldManager.normalizeId(
-                            id
-                    );
+                    SoccerFieldManager.normalizeId(id);
 
             if (normalizedId.isBlank()
                     || dimension == null
@@ -469,15 +389,19 @@ public final class SoccerFieldManager {
             );
 
             field.setCenter(
-                    PositionData.toBlockPos(
-                            center
-                    )
+                    PositionData.toBlockPos(center)
             );
 
             field.setBallSpawn(
-                    PositionData.toBlockPos(
-                            ballSpawn
-                    )
+                    PositionData.toBlockPos(ballSpawn)
+            );
+
+            field.setRedSpawn(
+                    PositionData.toBlockPos(redSpawn)
+            );
+
+            field.setBlueSpawn(
+                    PositionData.toBlockPos(blueSpawn)
             );
 
             field.setRedGoalPosition1(
@@ -508,9 +432,6 @@ public final class SoccerFieldManager {
         }
     }
 
-    /**
-     * Representación sencilla de un BlockPos.
-     */
     private static final class PositionData {
 
         private int x;
