@@ -122,12 +122,6 @@ public class SoccerBallEntity extends Entity {
      */
     private long ignoredPlayerUntilGameTime;
 
-    /**
-     * Control del sonido de las colisiones.
-     */
-    private UUID lastCollisionSoundPlayer;
-    private long lastCollisionSoundGameTime;
-
     public SoccerBallEntity(
             EntityType<? extends SoccerBallEntity> entityType,
             Level level
@@ -408,53 +402,98 @@ public class SoccerBallEntity extends Entity {
                         <= closestPlayer.getY()
                         + LEG_HEIGHT;
 
-        if (impactAtLegHeight) {
+        if (impactAtLegHeight
+                && playerHorizontalSpeed > 0.012D) {
             /*
-             * Las piernas desvían el balón y agregan una
-             * pequeña parte del movimiento del jugador.
+             * Un contacto con las piernas debe comportarse como
+             * un toque de fútbol: el balón sale hacia delante
+             * según el avance real del jugador.
+             *
+             * No se refleja contra el cuerpo ni se queda pegado
+             * a la hitbox.
              */
-            reflectedVelocity =
-                    reflectedVelocity.add(
-                            playerHorizontalMovement.scale(
-                                    0.36D
-                            )
+            Vec3 movementDirection =
+                    playerHorizontalMovement.normalize();
+
+            double forwardPower =
+                    closestPlayer.isShiftKeyDown()
+                            ? CROUCH_LEG_TOUCH_POWER
+                            : closestPlayer.isSprinting()
+                            ? SPRINT_LEG_TOUCH_POWER
+                            : WALK_LEG_TOUCH_POWER;
+
+            forwardPower += Math.min(
+                    playerHorizontalSpeed * 0.45D,
+                    closestPlayer.isSprinting()
+                            ? 0.14D
+                            : 0.06D
+            );
+
+            double carriedSpeed =
+                    Math.max(
+                            requestedVelocity.multiply(
+                                    1.0D,
+                                    0.0D,
+                                    1.0D
+                            ).length() * 0.58D,
+                            forwardPower
                     );
 
-            if (playerHorizontalSpeed > 0.015D) {
-                Vec3 movementDirection =
-                        playerHorizontalMovement.normalize();
+            reflectedVelocity =
+                    movementDirection.scale(
+                            carriedSpeed
+                    ).add(
+                            0.0D,
+                            Math.max(
+                                    0.0D,
+                                    requestedVelocity.y * 0.35D
+                            ),
+                            0.0D
+                    );
 
-                double extraStrength =
-                        Math.min(
-                                playerHorizontalSpeed * 0.35D,
-                                0.075D
-                        );
+        } else if (playerHorizontalSpeed > 0.012D) {
+            /*
+             * Si el cuerpo alcanza el balón, también lo empuja
+             * hacia delante en vez de producir un rebote blando
+             * tipo slime o una sensación pegajosa.
+             */
+            Vec3 movementDirection =
+                    playerHorizontalMovement.normalize();
 
-                if (closestPlayer.isSprinting()) {
-                    extraStrength += 0.035D;
-                }
+            double bodyPushPower =
+                    Math.max(
+                            playerHorizontalSpeed * 1.15D,
+                            0.18D
+                    );
 
-                reflectedVelocity =
-                        reflectedVelocity.add(
-                                movementDirection.scale(
-                                        extraStrength
-                                )
-                        );
-            }
+            reflectedVelocity =
+                    movementDirection.scale(
+                            bodyPushPower
+                    ).add(
+                            0.0D,
+                            Math.max(
+                                    0.0D,
+                                    requestedVelocity.y * 0.25D
+                            ),
+                            0.0D
+                    );
 
         } else {
             /*
-             * El torso absorbe más energía que las piernas.
+             * Jugador quieto: separar sin sonido y con un rebote
+             * seco muy pequeño para evitar que el balón quede
+             * dentro de la hitbox.
              */
             reflectedVelocity =
-                    new Vec3(
-                            reflectedVelocity.x * 0.76D,
-                            reflectedVelocity.y * 0.72D,
-                            reflectedVelocity.z * 0.76D
+                    collisionNormal.scale(
+                            0.08D
                     ).add(
-                            playerMovement.scale(
-                                    0.18D
-                            )
+                            0.0D,
+                            Math.max(
+                                    0.0D,
+                                    requestedVelocity.y * 0.25D
+                            ),
+                            0.0D
                     );
         }
 
@@ -463,11 +502,11 @@ public class SoccerBallEntity extends Entity {
                         reflectedVelocity
                 );
 
-        playPlayerCollisionSound(
-                closestPlayer,
-                requestedVelocity.length()
-        );
-
+        /*
+         * Los contactos con jugadores no reproducen sonido.
+         * El balón debe sentirse como una pelota de fútbol, no
+         * como un slime.
+         */
         return new PlayerCollisionResult(
                 allowedMovement,
                 reflectedVelocity,
@@ -873,20 +912,8 @@ public class SoccerBallEntity extends Entity {
                 gameTime;
 
         /*
-         * Sonido del toque.
+         * Los toques automáticos con piernas son silenciosos.
          */
-        this.level().playSound(
-                null,
-                this.blockPosition(),
-                SoundEvents.SLIME_SQUISH_SMALL,
-                SoundSource.PLAYERS,
-                player.isSprinting()
-                        ? 0.42F
-                        : 0.30F,
-                player.isSprinting()
-                        ? 1.10F
-                        : 1.28F
-        );
     }
 
     /**
@@ -920,68 +947,6 @@ public class SoccerBallEntity extends Entity {
         return legBox.intersects(
                 this.getBoundingBox()
         );
-    }
-
-    /**
-     * Reproduce el sonido del balón chocando contra
-     * un jugador.
-     */
-    private void playPlayerCollisionSound(
-            Player player,
-            double impactSpeed
-    ) {
-        if (this.level().isClientSide()) {
-            return;
-        }
-
-        long gameTime =
-                this.level().getGameTime();
-
-        /*
-         * El enfriamiento solamente afecta el sonido.
-         * La colisión física continúa activa.
-         */
-        if (this.lastCollisionSoundPlayer != null
-                && player.getUUID().equals(
-                this.lastCollisionSoundPlayer
-        )
-                && gameTime
-                - this.lastCollisionSoundGameTime
-                < 3L) {
-
-            return;
-        }
-
-        float volume =
-                (float) Mth.clamp(
-                        0.25D
-                                + impactSpeed * 0.30D,
-                        0.30D,
-                        0.85D
-                );
-
-        float pitch =
-                (float) Mth.clamp(
-                        1.30D
-                                - impactSpeed * 0.12D,
-                        0.88D,
-                        1.28D
-                );
-
-        this.level().playSound(
-                null,
-                this.blockPosition(),
-                SoundEvents.SLIME_SQUISH_SMALL,
-                SoundSource.PLAYERS,
-                volume,
-                pitch
-        );
-
-        this.lastCollisionSoundPlayer =
-                player.getUUID();
-
-        this.lastCollisionSoundGameTime =
-                gameTime;
     }
 
     /**
