@@ -1,0 +1,24 @@
+{
+  "whistle_start": {
+    "subtitle": "subtitles.crafterssoccer.whistle_start",
+    "sounds": [
+      {
+        "name": "crafterssoccer:whistle_start",
+        "volume": 0.85,
+        "pitch": 1.0,
+        "preload": true
+      }
+    ]
+  },
+  "whistle_end": {
+    "subtitle": "subtitles.crafterssoccer.whistle_end",
+    "sounds": [
+      {
+        "name": "crafterssoccer:whistle_end",
+        "volume": 0.85,
+        "pitch": 1.0,
+        "preload": true
+      }
+    ]
+  }
+}

@@ -1,3 +1,5 @@
 {
-  "entity.crafterssoccer.soccer_ball": "Soccer Ball"
+  "entity.crafterssoccer.soccer_ball": "Soccer Ball",
+  "subtitles.crafterssoccer.whistle_start": "Starting whistle blows",
+  "subtitles.crafterssoccer.whistle_end": "Final whistle blows"
 }

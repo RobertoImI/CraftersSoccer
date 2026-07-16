@@ -1,3 +1,5 @@
 {
-  "entity.crafterssoccer.soccer_ball": "Balón de fútbol"
+  "entity.crafterssoccer.soccer_ball": "Balón de fútbol",
+  "subtitles.crafterssoccer.whistle_start": "Suena el silbato de inicio",
+  "subtitles.crafterssoccer.whistle_end": "Suena el silbato final"
 }

@@ -3,6 +3,7 @@ package org.crafterscr.crafterssoccer;
 import org.crafterscr.crafterssoccer.command.SoccerCommands;
 import org.crafterscr.crafterssoccer.network.ModNetworking;
 import org.crafterscr.crafterssoccer.registry.ModEntities;
+import org.crafterscr.crafterssoccer.registry.ModSounds;
 
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
@@ -17,14 +18,25 @@ public final class CraftersSoccer {
     /**
      * Identificador interno del mod.
      */
-    public static final String MOD_ID = "crafterssoccer";
+    public static final String MOD_ID =
+            "crafterssoccer";
 
-    public CraftersSoccer(IEventBus modEventBus) {
-
+    public CraftersSoccer(
+            IEventBus modEventBus
+    ) {
         /*
          * Registrar entidades.
          */
-        ModEntities.ENTITY_TYPES.register(modEventBus);
+        ModEntities.ENTITY_TYPES.register(
+                modEventBus
+        );
+
+        /*
+         * Registrar sonidos personalizados.
+         */
+        ModSounds.SOUND_EVENTS.register(
+                modEventBus
+        );
 
         /*
          * Registrar paquetes de red.

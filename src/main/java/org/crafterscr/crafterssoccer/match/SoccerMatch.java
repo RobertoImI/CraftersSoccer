@@ -8,9 +8,11 @@ import org.crafterscr.crafterssoccer.entity.SoccerBallEntity;
 import org.crafterscr.crafterssoccer.field.SoccerField;
 import org.crafterscr.crafterssoccer.physics.SoccerBallPhysics;
 import org.crafterscr.crafterssoccer.registry.ModEntities;
+import org.crafterscr.crafterssoccer.registry.ModSounds;
 
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundSoundPacket;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -22,6 +24,8 @@ import net.minecraft.world.entity.RelativeMovement;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+
+import net.neoforged.neoforge.registries.DeferredHolder;
 
 /**
  * Representa un partido activo.
@@ -216,6 +220,16 @@ public final class SoccerMatch {
 
         previousBallCenter =
                 getBallCenter(ball);
+
+        /*
+         * Silbato de inicio:
+         * suena exactamente cuando termina el conteo
+         * y el partido cambia a PLAYING.
+         */
+        playWhistleForEveryone(
+                server,
+                ModSounds.WHISTLE_START
+        );
 
         broadcast(
                 server,
@@ -415,6 +429,15 @@ public final class SoccerMatch {
         );
 
         ball.hasImpulse = true;
+
+        /*
+         * Silbato final:
+         * suena una sola vez cuando el tiempo llega a 00:00.
+         */
+        playWhistleForEveryone(
+                server,
+                ModSounds.WHISTLE_END
+        );
 
         broadcast(
                 server,
@@ -838,6 +861,36 @@ public final class SoccerMatch {
         return server.getLevel(
                 dimensionKey
         );
+    }
+
+    /**
+     * Reproduce el silbato directamente para cada jugador
+     * conectado al servidor.
+     *
+     * Se envía desde la posición de cada jugador para que
+     * todos lo escuchen con el mismo volumen moderado,
+     * sin depender de la distancia al centro del estadio.
+     */
+    private static void playWhistleForEveryone(
+            MinecraftServer server,
+            DeferredHolder<net.minecraft.sounds.SoundEvent, net.minecraft.sounds.SoundEvent> sound
+    ) {
+        for (ServerPlayer player
+                : server.getPlayerList().getPlayers()) {
+
+            player.connection.send(
+                    new ClientboundSoundPacket(
+                            sound,
+                            SoundSource.PLAYERS,
+                            player.getX(),
+                            player.getY(),
+                            player.getZ(),
+                            0.65F,
+                            1.0F,
+                            player.getRandom().nextLong()
+                    )
+            );
+        }
     }
 
     private static void broadcast(
