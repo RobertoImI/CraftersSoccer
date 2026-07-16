@@ -14,11 +14,15 @@ import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
- * Administra el partido y las plantillas.
- *
- * Esta primera versión permite un partido activo por servidor.
+ * Administra el partido, los equipos y sus nombres.
  */
 public final class SoccerMatchManager {
+
+    private static final String DEFAULT_RED_NAME =
+            "Equipo Rojo";
+
+    private static final String DEFAULT_BLUE_NAME =
+            "Equipo Azul";
 
     private static final Set<UUID> RED_PLAYERS =
             new LinkedHashSet<>();
@@ -28,6 +32,12 @@ public final class SoccerMatchManager {
 
     private static MinecraftServer currentServer;
     private static SoccerMatch activeMatch;
+
+    private static String redTeamName =
+            DEFAULT_RED_NAME;
+
+    private static String blueTeamName =
+            DEFAULT_BLUE_NAME;
 
     private static int synchronizationTicker;
 
@@ -47,6 +57,12 @@ public final class SoccerMatchManager {
         RED_PLAYERS.clear();
         BLUE_PLAYERS.clear();
 
+        redTeamName =
+                DEFAULT_RED_NAME;
+
+        blueTeamName =
+                DEFAULT_BLUE_NAME;
+
         synchronizationTicker = 0;
     }
 
@@ -65,9 +81,22 @@ public final class SoccerMatchManager {
                 player.getUUID()
         );
 
-        return getTeam(side).add(
-                player.getUUID()
+        boolean added =
+                getTeam(side).add(
+                        player.getUUID()
+                );
+
+        SoccerTeamDisplayManager.synchronize(
+                server,
+                RED_PLAYERS,
+                BLUE_PLAYERS,
+                redTeamName,
+                blueTeamName
         );
+
+        synchronize(server);
+
+        return added;
     }
 
     public static boolean removePlayer(
@@ -82,7 +111,87 @@ public final class SoccerMatchManager {
         boolean removedBlue =
                 BLUE_PLAYERS.remove(playerId);
 
+        ServerPlayer player =
+                server.getPlayerList()
+                        .getPlayer(playerId);
+
+        if (player != null) {
+            SoccerTeamDisplayManager.removePlayer(
+                    server,
+                    player
+            );
+        }
+
+        SoccerTeamDisplayManager.synchronize(
+                server,
+                RED_PLAYERS,
+                BLUE_PLAYERS,
+                redTeamName,
+                blueTeamName
+        );
+
+        synchronize(server);
+
         return removedRed || removedBlue;
+    }
+
+    public static boolean setTeamName(
+            MinecraftServer server,
+            SoccerTeamSide side,
+            String requestedName
+    ) {
+        ensureServer(server);
+
+        String safeName =
+                sanitizeTeamName(
+                        requestedName
+                );
+
+        if (safeName.isBlank()) {
+            return false;
+        }
+
+        if (side == SoccerTeamSide.RED) {
+            redTeamName = safeName;
+
+        } else {
+            blueTeamName = safeName;
+        }
+
+        SoccerTeamDisplayManager.synchronize(
+                server,
+                RED_PLAYERS,
+                BLUE_PLAYERS,
+                redTeamName,
+                blueTeamName
+        );
+
+        synchronize(server);
+
+        return true;
+    }
+
+    public static String getRedTeamName(
+            MinecraftServer server
+    ) {
+        ensureServer(server);
+        return redTeamName;
+    }
+
+    public static String getBlueTeamName(
+            MinecraftServer server
+    ) {
+        ensureServer(server);
+        return blueTeamName;
+    }
+
+    public static String getTeamName(
+            MinecraftServer server,
+            SoccerTeamSide side
+    ) {
+        return side == SoccerTeamSide.RED
+                ? getRedTeamName(server)
+                : getBlueTeamName(server);
     }
 
     public static Set<UUID> getRedPlayers(
@@ -142,6 +251,14 @@ public final class SoccerMatchManager {
                         field.getId(),
                         durationTicks
                 );
+
+        SoccerTeamDisplayManager.synchronize(
+                server,
+                RED_PLAYERS,
+                BLUE_PLAYERS,
+                redTeamName,
+                blueTeamName
+        );
 
         activeMatch.start(
                 server,
@@ -259,6 +376,14 @@ public final class SoccerMatchManager {
     ) {
         ensureServer(server);
 
+        SoccerTeamDisplayManager.synchronize(
+                server,
+                RED_PLAYERS,
+                BLUE_PLAYERS,
+                redTeamName,
+                blueTeamName
+        );
+
         if (activeMatch == null) {
             PacketDistributor.sendToPlayer(
                     player,
@@ -270,7 +395,11 @@ public final class SoccerMatchManager {
 
         PacketDistributor.sendToPlayer(
                 player,
-                createPayload(activeMatch)
+                createPayload(
+                        server,
+                        activeMatch,
+                        player
+                )
         );
     }
 
@@ -284,30 +413,49 @@ public final class SoccerMatchManager {
             return;
         }
 
-        MatchStatePayload payload =
-                createPayload(activeMatch);
-
         for (ServerPlayer player
-                : server.getPlayerList().getPlayers()) {
+                : server.getPlayerList()
+                .getPlayers()) {
 
             PacketDistributor.sendToPlayer(
                     player,
-                    payload
+                    createPayload(
+                            server,
+                            activeMatch,
+                            player
+                    )
             );
         }
     }
 
     private static MatchStatePayload createPayload(
-            SoccerMatch match
+            MinecraftServer server,
+            SoccerMatch match,
+            ServerPlayer player
     ) {
+        SoccerTeamSide playerSide =
+                getPlayerTeam(
+                        server,
+                        player.getUUID()
+                );
+
+        boolean participant =
+                playerSide != null;
+
         return new MatchStatePayload(
                 true,
                 match.getFieldId(),
+                redTeamName,
+                blueTeamName,
                 match.getRedScore(),
                 match.getBlueScore(),
                 match.getRemainingTicks(),
                 match.getState().name(),
-                match.getMessage()
+                match.getMessage(),
+                participant,
+                playerSide == null
+                        ? ""
+                        : playerSide.name()
         );
     }
 
@@ -318,7 +466,8 @@ public final class SoccerMatchManager {
                 MatchStatePayload.inactive();
 
         for (ServerPlayer player
-                : server.getPlayerList().getPlayers()) {
+                : server.getPlayerList()
+                .getPlayers()) {
 
             PacketDistributor.sendToPlayer(
                     player,
@@ -333,5 +482,39 @@ public final class SoccerMatchManager {
         return side == SoccerTeamSide.RED
                 ? RED_PLAYERS
                 : BLUE_PLAYERS;
+    }
+
+    private static String sanitizeTeamName(
+            String requestedName
+    ) {
+        if (requestedName == null) {
+            return "";
+        }
+
+        /*
+         * Quitar códigos de formato de Minecraft
+         * introducidos con el símbolo §.
+         */
+        String cleaned =
+                requestedName
+                        .replaceAll(
+                                "§.",
+                                ""
+                        )
+                        .trim()
+                        .replaceAll(
+                                "\\s+",
+                                " "
+                        );
+
+        if (cleaned.length() > 24) {
+            cleaned =
+                    cleaned.substring(
+                            0,
+                            24
+                    );
+        }
+
+        return cleaned;
     }
 }

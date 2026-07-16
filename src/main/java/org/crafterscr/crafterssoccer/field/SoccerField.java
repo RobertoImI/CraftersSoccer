@@ -1,5 +1,9 @@
 package org.crafterscr.crafterssoccer.field;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -18,8 +22,15 @@ public final class SoccerField {
     private BlockPos center;
     private BlockPos ballSpawn;
 
-    private BlockPos redSpawn;
-    private BlockPos blueSpawn;
+    /**
+     * Una cancha puede tener múltiples posiciones
+     * de aparición para cada equipo.
+     */
+    private final List<BlockPos> redSpawns =
+            new ArrayList<>();
+
+    private final List<BlockPos> blueSpawns =
+            new ArrayList<>();
 
     private BlockPos redGoalPosition1;
     private BlockPos redGoalPosition2;
@@ -43,7 +54,9 @@ public final class SoccerField {
         return dimensionId;
     }
 
-    public void setDimensionId(String dimensionId) {
+    public void setDimensionId(
+            String dimensionId
+    ) {
         this.dimensionId = dimensionId;
     }
 
@@ -51,80 +64,175 @@ public final class SoccerField {
         return fieldPosition1;
     }
 
-    public void setFieldPosition1(BlockPos position) {
-        this.fieldPosition1 = immutable(position);
+    public void setFieldPosition1(
+            BlockPos position
+    ) {
+        this.fieldPosition1 =
+                immutable(position);
     }
 
     public BlockPos getFieldPosition2() {
         return fieldPosition2;
     }
 
-    public void setFieldPosition2(BlockPos position) {
-        this.fieldPosition2 = immutable(position);
+    public void setFieldPosition2(
+            BlockPos position
+    ) {
+        this.fieldPosition2 =
+                immutable(position);
     }
 
     public BlockPos getCenter() {
         return center;
     }
 
-    public void setCenter(BlockPos position) {
-        this.center = immutable(position);
+    public void setCenter(
+            BlockPos position
+    ) {
+        this.center =
+                immutable(position);
     }
 
     public BlockPos getBallSpawn() {
         return ballSpawn;
     }
 
-    public void setBallSpawn(BlockPos position) {
-        this.ballSpawn = immutable(position);
-    }
-
-    public BlockPos getRedSpawn() {
-        return redSpawn;
-    }
-
-    public void setRedSpawn(BlockPos position) {
-        this.redSpawn = immutable(position);
-    }
-
-    public BlockPos getBlueSpawn() {
-        return blueSpawn;
-    }
-
-    public void setBlueSpawn(BlockPos position) {
-        this.blueSpawn = immutable(position);
+    public void setBallSpawn(
+            BlockPos position
+    ) {
+        this.ballSpawn =
+                immutable(position);
     }
 
     public BlockPos getRedGoalPosition1() {
         return redGoalPosition1;
     }
 
-    public void setRedGoalPosition1(BlockPos position) {
-        this.redGoalPosition1 = immutable(position);
+    public void setRedGoalPosition1(
+            BlockPos position
+    ) {
+        this.redGoalPosition1 =
+                immutable(position);
     }
 
     public BlockPos getRedGoalPosition2() {
         return redGoalPosition2;
     }
 
-    public void setRedGoalPosition2(BlockPos position) {
-        this.redGoalPosition2 = immutable(position);
+    public void setRedGoalPosition2(
+            BlockPos position
+    ) {
+        this.redGoalPosition2 =
+                immutable(position);
     }
 
     public BlockPos getBlueGoalPosition1() {
         return blueGoalPosition1;
     }
 
-    public void setBlueGoalPosition1(BlockPos position) {
-        this.blueGoalPosition1 = immutable(position);
+    public void setBlueGoalPosition1(
+            BlockPos position
+    ) {
+        this.blueGoalPosition1 =
+                immutable(position);
     }
 
     public BlockPos getBlueGoalPosition2() {
         return blueGoalPosition2;
     }
 
-    public void setBlueGoalPosition2(BlockPos position) {
-        this.blueGoalPosition2 = immutable(position);
+    public void setBlueGoalPosition2(
+            BlockPos position
+    ) {
+        this.blueGoalPosition2 =
+                immutable(position);
+    }
+
+    public List<BlockPos> getRedSpawns() {
+        return Collections.unmodifiableList(
+                redSpawns
+        );
+    }
+
+    public List<BlockPos> getBlueSpawns() {
+        return Collections.unmodifiableList(
+                blueSpawns
+        );
+    }
+
+    public void addRedSpawn(
+            BlockPos position
+    ) {
+        addSpawn(
+                redSpawns,
+                position
+        );
+    }
+
+    public void addBlueSpawn(
+            BlockPos position
+    ) {
+        addSpawn(
+                blueSpawns,
+                position
+        );
+    }
+
+    public boolean removeRedSpawn(
+            int index
+    ) {
+        return removeSpawn(
+                redSpawns,
+                index
+        );
+    }
+
+    public boolean removeBlueSpawn(
+            int index
+    ) {
+        return removeSpawn(
+                blueSpawns,
+                index
+        );
+    }
+
+    public void clearRedSpawns() {
+        redSpawns.clear();
+    }
+
+    public void clearBlueSpawns() {
+        blueSpawns.clear();
+    }
+
+    /**
+     * Métodos usados por el cargador JSON.
+     */
+    public void setRedSpawns(
+            List<BlockPos> positions
+    ) {
+        redSpawns.clear();
+
+        if (positions == null) {
+            return;
+        }
+
+        for (BlockPos position : positions) {
+            addRedSpawn(position);
+        }
+    }
+
+    public void setBlueSpawns(
+            List<BlockPos> positions
+    ) {
+        blueSpawns.clear();
+
+        if (positions == null) {
+            return;
+        }
+
+        for (BlockPos position : positions) {
+            addBlueSpawn(position);
+        }
     }
 
     public boolean hasFieldBounds() {
@@ -142,9 +250,6 @@ public final class SoccerField {
                 && blueGoalPosition2 != null;
     }
 
-    /**
-     * Configuración geométrica básica.
-     */
     public boolean isComplete() {
         return dimensionId != null
                 && !dimensionId.isBlank()
@@ -155,13 +260,10 @@ public final class SoccerField {
                 && hasBlueGoal();
     }
 
-    /**
-     * Configuración necesaria para comenzar un partido.
-     */
     public boolean isMatchReady() {
         return isComplete()
-                && redSpawn != null
-                && blueSpawn != null;
+                && !redSpawns.isEmpty()
+                && !blueSpawns.isEmpty();
     }
 
     public AABB getFieldBounds() {
@@ -204,16 +306,84 @@ public final class SoccerField {
         );
     }
 
-    public Vec3 getRedSpawnPosition() {
-        return toCenteredPosition(
-                redSpawn,
-                0.10D
+    public Vec3 getRedSpawnPosition(
+            int index
+    ) {
+        return getSpawnPosition(
+                redSpawns,
+                index
         );
     }
 
-    public Vec3 getBlueSpawnPosition() {
+    public Vec3 getBlueSpawnPosition(
+            int index
+    ) {
+        return getSpawnPosition(
+                blueSpawns,
+                index
+        );
+    }
+
+    private static void addSpawn(
+            List<BlockPos> spawns,
+            BlockPos position
+    ) {
+        if (position == null) {
+            return;
+        }
+
+        BlockPos immutablePosition =
+                position.immutable();
+
+        /*
+         * Evitar puntos duplicados.
+         */
+        if (!spawns.contains(
+                immutablePosition
+        )) {
+            spawns.add(
+                    immutablePosition
+            );
+        }
+    }
+
+    /**
+     * El índice recibido es de lista:
+     * 0 representa el primer spawn.
+     */
+    private static boolean removeSpawn(
+            List<BlockPos> spawns,
+            int index
+    ) {
+        if (index < 0
+                || index >= spawns.size()) {
+            return false;
+        }
+
+        spawns.remove(index);
+        return true;
+    }
+
+    private static Vec3 getSpawnPosition(
+            List<BlockPos> spawns,
+            int playerIndex
+    ) {
+        if (spawns.isEmpty()) {
+            return null;
+        }
+
+        /*
+         * Si hay más jugadores que spawns,
+         * se reutilizan de forma circular.
+         */
+        int safeIndex =
+                Math.floorMod(
+                        playerIndex,
+                        spawns.size()
+                );
+
         return toCenteredPosition(
-                blueSpawn,
+                spawns.get(safeIndex),
                 0.10D
         );
     }
@@ -245,35 +415,41 @@ public final class SoccerField {
             BlockPos first,
             BlockPos second
     ) {
-        double minX = Math.min(
-                first.getX(),
-                second.getX()
-        );
+        double minX =
+                Math.min(
+                        first.getX(),
+                        second.getX()
+                );
 
-        double minY = Math.min(
-                first.getY(),
-                second.getY()
-        );
+        double minY =
+                Math.min(
+                        first.getY(),
+                        second.getY()
+                );
 
-        double minZ = Math.min(
-                first.getZ(),
-                second.getZ()
-        );
+        double minZ =
+                Math.min(
+                        first.getZ(),
+                        second.getZ()
+                );
 
-        double maxX = Math.max(
-                first.getX(),
-                second.getX()
-        ) + 1.0D;
+        double maxX =
+                Math.max(
+                        first.getX(),
+                        second.getX()
+                ) + 1.0D;
 
-        double maxY = Math.max(
-                first.getY(),
-                second.getY()
-        ) + 1.0D;
+        double maxY =
+                Math.max(
+                        first.getY(),
+                        second.getY()
+                ) + 1.0D;
 
-        double maxZ = Math.max(
-                first.getZ(),
-                second.getZ()
-        ) + 1.0D;
+        double maxZ =
+                Math.max(
+                        first.getZ(),
+                        second.getZ()
+                ) + 1.0D;
 
         return new AABB(
                 minX,

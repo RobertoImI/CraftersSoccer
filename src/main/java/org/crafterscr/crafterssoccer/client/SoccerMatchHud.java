@@ -2,12 +2,25 @@ package org.crafterscr.crafterssoccer.client;
 
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 
 /**
- * Marcador superior del partido.
+ * HUD superior del partido.
+ *
+ * Cambios:
+ * - Centra correctamente el nombre de cada equipo
+ *   dentro de su cuadro.
+ * - Elimina el texto "TU EQUIPO: ...".
+ * - Los espectadores solo ven marcador y tiempo.
+ * - Los participantes también ven mensajes del partido.
  */
 public final class SoccerMatchHud {
+
+    private static final int PANEL_WIDTH = 290;
+    private static final int PANEL_HEIGHT = 34;
+    private static final int TOP_BAR_HEIGHT = 19;
+    private static final int SCORE_BOX_HALF_WIDTH = 42;
 
     private SoccerMatchHud() {
     }
@@ -28,58 +41,84 @@ public final class SoccerMatchHud {
         int centerX =
                 graphics.guiWidth() / 2;
 
-        int panelWidth = 184;
-        int panelHeight = 34;
-
         int x =
-                centerX - panelWidth / 2;
+                centerX - PANEL_WIDTH / 2;
 
         int y = 8;
+
+        int leftBoxStart = x;
+        int leftBoxEnd = centerX - SCORE_BOX_HALF_WIDTH;
+
+        int rightBoxStart = centerX + SCORE_BOX_HALF_WIDTH;
+        int rightBoxEnd = x + PANEL_WIDTH;
 
         graphics.fill(
                 x - 1,
                 y - 1,
-                x + panelWidth + 1,
-                y + panelHeight + 1,
+                x + PANEL_WIDTH + 1,
+                y + PANEL_HEIGHT + 1,
                 0xAA000000
         );
 
         graphics.fill(
                 x,
                 y,
-                x + panelWidth,
-                y + panelHeight,
-                0xD91A1A1A
+                x + PANEL_WIDTH,
+                y + PANEL_HEIGHT,
+                0xDD171717
         );
 
         graphics.fill(
-                x,
+                leftBoxStart,
                 y,
-                centerX - 32,
-                y + 19,
-                0xAAAD2525
+                leftBoxEnd,
+                y + TOP_BAR_HEIGHT,
+                0xCC9F2222
         );
 
         graphics.fill(
-                centerX + 32,
+                rightBoxStart,
                 y,
-                x + panelWidth,
-                y + 19,
-                0xAA2859B8
+                rightBoxEnd,
+                y + TOP_BAR_HEIGHT,
+                0xCC2453A6
         );
+
+        Font font =
+                minecraft.font;
+
+        String redName =
+                fitTextCentered(
+                        font,
+                        ClientMatchState.getRedTeamName(),
+                        Math.max(
+                                10,
+                                leftBoxEnd - leftBoxStart - 10
+                        )
+                );
+
+        String blueName =
+                fitTextCentered(
+                        font,
+                        ClientMatchState.getBlueTeamName(),
+                        Math.max(
+                                10,
+                                rightBoxEnd - rightBoxStart - 10
+                        )
+                );
 
         graphics.drawCenteredString(
-                minecraft.font,
-                "ROJO",
-                x + 39,
+                font,
+                redName,
+                (leftBoxStart + leftBoxEnd) / 2,
                 y + 6,
                 0xFFFFFFFF
         );
 
         graphics.drawCenteredString(
-                minecraft.font,
-                "AZUL",
-                x + panelWidth - 39,
+                font,
+                blueName,
+                (rightBoxStart + rightBoxEnd) / 2,
                 y + 6,
                 0xFFFFFFFF
         );
@@ -90,7 +129,7 @@ public final class SoccerMatchHud {
                         + ClientMatchState.getBlueScore();
 
         graphics.drawCenteredString(
-                minecraft.font,
+                font,
                 score,
                 centerX,
                 y + 6,
@@ -98,15 +137,21 @@ public final class SoccerMatchHud {
         );
 
         graphics.drawCenteredString(
-                minecraft.font,
+                font,
                 formatTime(
-                        ClientMatchState
-                                .getRemainingTicks()
+                        ClientMatchState.getRemainingTicks()
                 ),
                 centerX,
                 y + 21,
                 0xFFEFEFEF
         );
+
+        /*
+         * Los espectadores solamente ven marcador y tiempo.
+         */
+        if (!ClientMatchState.isParticipant()) {
+            return;
+        }
 
         String message =
                 ClientMatchState.getMessage();
@@ -115,10 +160,10 @@ public final class SoccerMatchHud {
                 && !message.isBlank()) {
 
             graphics.drawCenteredString(
-                    minecraft.font,
+                    font,
                     message,
                     centerX,
-                    y + panelHeight + 5,
+                    y + PANEL_HEIGHT + 5,
                     getMessageColor(
                             ClientMatchState.getState()
                     )
@@ -126,11 +171,56 @@ public final class SoccerMatchHud {
         }
     }
 
+    private static String fitTextCentered(
+            Font font,
+            String text,
+            int maxWidth
+    ) {
+        if (text == null || text.isBlank()) {
+            return "";
+        }
+
+        if (font.width(text) <= maxWidth) {
+            return text;
+        }
+
+        String ellipsis = "...";
+        int ellipsisWidth =
+                font.width(ellipsis);
+
+        if (ellipsisWidth >= maxWidth) {
+            return "";
+        }
+
+        StringBuilder builder =
+                new StringBuilder();
+
+        for (int i = 0; i < text.length(); i++) {
+            String next =
+                    builder.toString()
+                            + text.charAt(i);
+
+            if (font.width(next) + ellipsisWidth
+                    > maxWidth) {
+                break;
+            }
+
+            builder.append(
+                    text.charAt(i)
+            );
+        }
+
+        return builder + ellipsis;
+    }
+
     private static String formatTime(
             int ticks
     ) {
         int totalSeconds =
-                Math.max(0, ticks / 20);
+                Math.max(
+                        0,
+                        ticks / 20
+                );
 
         int minutes =
                 totalSeconds / 60;

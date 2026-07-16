@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.crafterscr.crafterssoccer.entity.SoccerBallEntity;
 import org.crafterscr.crafterssoccer.field.SoccerField;
+import org.crafterscr.crafterssoccer.physics.SoccerBallPhysics;
 import org.crafterscr.crafterssoccer.registry.ModEntities;
 
 import net.minecraft.core.registries.Registries;
@@ -24,12 +25,22 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * Representa un partido activo.
+ *
+ * Cambios nuevos:
+ * - Goles anuncian el nombre personalizado del equipo.
+ * - La bola oficial rebota dentro del field.
+ * - Soporta múltiples spawns por equipo.
  */
 public final class SoccerMatch {
 
     private static final int INITIAL_COUNTDOWN_TICKS = 60;
     private static final int GOAL_PAUSE_TICKS = 80;
     private static final int FINISH_DISPLAY_TICKS = 200;
+
+    /**
+     * Rebote del "muro invisible" del field.
+     */
+    private static final double FIELD_WALL_BOUNCE = 0.78D;
 
     private final String fieldId;
     private final int initialDurationTicks;
@@ -240,7 +251,6 @@ public final class SoccerMatch {
                     ball,
                     SoccerTeamSide.BLUE
             );
-
             return;
         }
 
@@ -255,12 +265,16 @@ public final class SoccerMatch {
                     ball,
                     SoccerTeamSide.RED
             );
-
             return;
         }
 
+        keepBallInsideField(
+                ball,
+                field
+        );
+
         previousBallCenter =
-                currentCenter;
+                getBallCenter(ball);
 
         if (remainingTicks <= 0) {
             finish(server, ball);
@@ -327,7 +341,6 @@ public final class SoccerMatch {
     ) {
         if (scoringTeam == SoccerTeamSide.RED) {
             redScore++;
-
         } else {
             blueScore++;
         }
@@ -338,10 +351,14 @@ public final class SoccerMatch {
         stateTicks =
                 GOAL_PAUSE_TICKS;
 
+        String scoringTeamName =
+                SoccerMatchManager.getTeamName(
+                        server,
+                        scoringTeam
+                );
+
         message =
-                "¡GOL DEL EQUIPO "
-                        + scoringTeam.getDisplayName()
-                        + "!";
+                "¡GOL DE " + scoringTeamName + "!";
 
         freezeBall(
                 ball,
@@ -350,8 +367,8 @@ public final class SoccerMatch {
 
         broadcast(
                 server,
-                "§6§l¡GOL DEL EQUIPO "
-                        + scoringTeam.getDisplayName()
+                "§6§l¡GOL DE "
+                        + scoringTeamName
                         + "! §f"
                         + redScore
                         + " - "
@@ -365,16 +382,18 @@ public final class SoccerMatch {
             Vec3 position =
                     field.getBallSpawnPosition();
 
-            level.playSound(
-                    null,
-                    position.x,
-                    position.y,
-                    position.z,
-                    SoundEvents.NOTE_BLOCK_PLING.value(),
-                    SoundSource.PLAYERS,
-                    1.4F,
-                    1.0F
-            );
+            if (position != null) {
+                level.playSound(
+                        null,
+                        position.x,
+                        position.y,
+                        position.z,
+                        SoundEvents.NOTE_BLOCK_PLING.value(),
+                        SoundSource.PLAYERS,
+                        1.4F,
+                        1.0F
+                );
+            }
         }
     }
 
@@ -494,7 +513,6 @@ public final class SoccerMatch {
 
         if (level.getEntity(officialBallUuid)
                 instanceof SoccerBallEntity ball) {
-
             return ball;
         }
 
@@ -577,6 +595,112 @@ public final class SoccerMatch {
         );
     }
 
+    /**
+     * Mantiene el balón oficial dentro de los límites
+     * horizontales del field.
+     *
+     * Los jugadores pueden salir del área si quieren,
+     * pero el balón rebotará como si existiera una pared
+     * invisible.
+     */
+    private void keepBallInsideField(
+            SoccerBallEntity ball,
+            SoccerField field
+    ) {
+        AABB bounds =
+                field.getFieldBounds();
+
+        if (bounds == null) {
+            return;
+        }
+
+        double radius =
+                SoccerBallEntity.BALL_RADIUS;
+
+        double minX =
+                bounds.minX + radius;
+
+        double maxX =
+                bounds.maxX - radius;
+
+        double minZ =
+                bounds.minZ + radius;
+
+        double maxZ =
+                bounds.maxZ - radius;
+
+        Vec3 position =
+                ball.position();
+
+        double x = position.x;
+        double y = position.y;
+        double z = position.z;
+
+        Vec3 velocity =
+                ball.getDeltaMovement();
+
+        double velocityX =
+                velocity.x;
+
+        double velocityY =
+                velocity.y;
+
+        double velocityZ =
+                velocity.z;
+
+        boolean bounced = false;
+
+        if (x < minX) {
+            x = minX;
+            velocityX =
+                    Math.abs(velocityX)
+                            * FIELD_WALL_BOUNCE;
+            bounced = true;
+        } else if (x > maxX) {
+            x = maxX;
+            velocityX =
+                    -Math.abs(velocityX)
+                            * FIELD_WALL_BOUNCE;
+            bounced = true;
+        }
+
+        if (z < minZ) {
+            z = minZ;
+            velocityZ =
+                    Math.abs(velocityZ)
+                            * FIELD_WALL_BOUNCE;
+            bounced = true;
+        } else if (z > maxZ) {
+            z = maxZ;
+            velocityZ =
+                    -Math.abs(velocityZ)
+                            * FIELD_WALL_BOUNCE;
+            bounced = true;
+        }
+
+        if (!bounced) {
+            return;
+        }
+
+        ball.setPos(
+                x,
+                y,
+                z
+        );
+
+        ball.setDeltaMovement(
+                SoccerBallPhysics.clampVelocity(
+                        new Vec3(
+                                velocityX,
+                                velocityY,
+                                velocityZ
+                        )
+                )
+        );
+
+        ball.hasImpulse = true;
+    }
+
     private static Vec3 getBallCenter(
             SoccerBallEntity ball
     ) {
@@ -628,14 +752,16 @@ public final class SoccerMatch {
                 server,
                 level,
                 redPlayers,
-                field.getRedSpawnPosition()
+                field,
+                SoccerTeamSide.RED
         );
 
         teleportPlayers(
                 server,
                 level,
                 bluePlayers,
-                field.getBlueSpawnPosition()
+                field,
+                SoccerTeamSide.BLUE
         );
     }
 
@@ -643,11 +769,10 @@ public final class SoccerMatch {
             MinecraftServer server,
             ServerLevel level,
             Set<UUID> playerIds,
-            Vec3 position
+            SoccerField field,
+            SoccerTeamSide side
     ) {
-        if (position == null) {
-            return;
-        }
+        int playerIndex = 0;
 
         for (UUID playerId : playerIds) {
             ServerPlayer player =
@@ -655,6 +780,21 @@ public final class SoccerMatch {
                             .getPlayer(playerId);
 
             if (player == null) {
+                continue;
+            }
+
+            Vec3 position =
+                    side == SoccerTeamSide.RED
+                            ? field.getRedSpawnPosition(
+                            playerIndex
+                    )
+                            : field.getBlueSpawnPosition(
+                            playerIndex
+                    );
+
+            playerIndex++;
+
+            if (position == null) {
                 continue;
             }
 
@@ -685,7 +825,6 @@ public final class SoccerMatch {
                     ResourceLocation.parse(
                             field.getDimensionId()
                     );
-
         } catch (Exception exception) {
             return null;
         }

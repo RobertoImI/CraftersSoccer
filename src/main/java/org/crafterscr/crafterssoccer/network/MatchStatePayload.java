@@ -10,16 +10,20 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * Sincroniza el estado del partido con los clientes.
+ * Sincroniza el partido con cada cliente.
  */
 public record MatchStatePayload(
         boolean active,
         String fieldId,
+        String redTeamName,
+        String blueTeamName,
         int redScore,
         int blueScore,
         int remainingTicks,
         String state,
-        String message
+        String message,
+        boolean participant,
+        String playerTeamSide
 ) implements CustomPacketPayload {
 
     public static final Type<MatchStatePayload> TYPE =
@@ -53,6 +57,16 @@ public record MatchStatePayload(
                 payload.fieldId()
         );
 
+        ByteBufCodecs.STRING_UTF8.encode(
+                buffer,
+                payload.redTeamName()
+        );
+
+        ByteBufCodecs.STRING_UTF8.encode(
+                buffer,
+                payload.blueTeamName()
+        );
+
         ByteBufCodecs.VAR_INT.encode(
                 buffer,
                 payload.redScore()
@@ -77,6 +91,16 @@ public record MatchStatePayload(
                 buffer,
                 payload.message()
         );
+
+        ByteBufCodecs.BOOL.encode(
+                buffer,
+                payload.participant()
+        );
+
+        ByteBufCodecs.STRING_UTF8.encode(
+                buffer,
+                payload.playerTeamSide()
+        );
     }
 
     private static MatchStatePayload decode(
@@ -85,10 +109,14 @@ public record MatchStatePayload(
         return new MatchStatePayload(
                 ByteBufCodecs.BOOL.decode(buffer),
                 ByteBufCodecs.STRING_UTF8.decode(buffer),
+                ByteBufCodecs.STRING_UTF8.decode(buffer),
+                ByteBufCodecs.STRING_UTF8.decode(buffer),
                 ByteBufCodecs.VAR_INT.decode(buffer),
                 ByteBufCodecs.VAR_INT.decode(buffer),
                 ByteBufCodecs.VAR_INT.decode(buffer),
                 ByteBufCodecs.STRING_UTF8.decode(buffer),
+                ByteBufCodecs.STRING_UTF8.decode(buffer),
+                ByteBufCodecs.BOOL.decode(buffer),
                 ByteBufCodecs.STRING_UTF8.decode(buffer)
         );
     }
@@ -97,10 +125,14 @@ public record MatchStatePayload(
         return new MatchStatePayload(
                 false,
                 "",
+                "",
+                "",
                 0,
                 0,
                 0,
                 "",
+                "",
+                false,
                 ""
         );
     }

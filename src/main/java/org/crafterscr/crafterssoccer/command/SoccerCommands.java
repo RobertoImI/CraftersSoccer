@@ -228,35 +228,17 @@ public final class SoccerCommands {
 
                 .then(
                         Commands.literal("spawn")
-
                                 .then(
-                                        Commands.literal("red")
-                                                .then(
-                                                        fieldArgument()
-                                                                .executes(
-                                                                        context ->
-                                                                                setFieldPosition(
-                                                                                        context.getSource(),
-                                                                                        getFieldId(context),
-                                                                                        FieldPoint.RED_SPAWN
-                                                                                )
-                                                                )
-                                                )
+                                        createSpawnTeamCommands(
+                                                "red",
+                                                SoccerTeamSide.RED
+                                        )
                                 )
-
                                 .then(
-                                        Commands.literal("blue")
-                                                .then(
-                                                        fieldArgument()
-                                                                .executes(
-                                                                        context ->
-                                                                                setFieldPosition(
-                                                                                        context.getSource(),
-                                                                                        getFieldId(context),
-                                                                                        FieldPoint.BLUE_SPAWN
-                                                                                )
-                                                                )
-                                                )
+                                        createSpawnTeamCommands(
+                                                "blue",
+                                                SoccerTeamSide.BLUE
+                                        )
                                 )
                 )
 
@@ -373,6 +355,85 @@ public final class SoccerCommands {
 
     private static com.mojang.brigadier.builder
             .LiteralArgumentBuilder<CommandSourceStack>
+    createSpawnTeamCommands(
+            String commandName,
+            SoccerTeamSide side
+    ) {
+        return Commands.literal(commandName)
+
+                .then(
+                        Commands.literal("add")
+                                .then(
+                                        fieldArgument()
+                                                .executes(
+                                                        context ->
+                                                                addTeamSpawn(
+                                                                        context.getSource(),
+                                                                        getFieldId(context),
+                                                                        side
+                                                                )
+                                                )
+                                )
+                )
+
+                .then(
+                        Commands.literal("list")
+                                .then(
+                                        fieldArgument()
+                                                .executes(
+                                                        context ->
+                                                                listTeamSpawns(
+                                                                        context.getSource(),
+                                                                        getFieldId(context),
+                                                                        side
+                                                                )
+                                                )
+                                )
+                )
+
+                .then(
+                        Commands.literal("remove")
+                                .then(
+                                        fieldArgument()
+                                                .then(
+                                                        Commands.argument(
+                                                                        "number",
+                                                                        IntegerArgumentType.integer(1)
+                                                                )
+                                                                .executes(
+                                                                        context ->
+                                                                                removeTeamSpawn(
+                                                                                        context.getSource(),
+                                                                                        getFieldId(context),
+                                                                                        side,
+                                                                                        IntegerArgumentType.getInteger(
+                                                                                                context,
+                                                                                                "number"
+                                                                                        )
+                                                                                )
+                                                                )
+                                                )
+                                )
+                )
+
+                .then(
+                        Commands.literal("clear")
+                                .then(
+                                        fieldArgument()
+                                                .executes(
+                                                        context ->
+                                                                clearTeamSpawns(
+                                                                        context.getSource(),
+                                                                        getFieldId(context),
+                                                                        side
+                                                                )
+                                                )
+                                )
+                );
+    }
+
+    private static com.mojang.brigadier.builder
+            .LiteralArgumentBuilder<CommandSourceStack>
     createTeamCommands() {
 
         return Commands.literal("team")
@@ -399,6 +460,26 @@ public final class SoccerCommands {
                                                                 )
                                                 )
                                 )
+                                .then(
+                                        Commands.literal("name")
+                                                .then(
+                                                        Commands.argument(
+                                                                        "name",
+                                                                        StringArgumentType.greedyString()
+                                                                )
+                                                                .executes(
+                                                                        context ->
+                                                                                setTeamName(
+                                                                                        context.getSource(),
+                                                                                        SoccerTeamSide.RED,
+                                                                                        StringArgumentType.getString(
+                                                                                                context,
+                                                                                                "name"
+                                                                                        )
+                                                                                )
+                                                                )
+                                                )
+                                )
                 )
 
                 .then(
@@ -419,6 +500,26 @@ public final class SoccerCommands {
                                                                                                 "player"
                                                                                         ),
                                                                                         SoccerTeamSide.BLUE
+                                                                                )
+                                                                )
+                                                )
+                                )
+                                .then(
+                                        Commands.literal("name")
+                                                .then(
+                                                        Commands.argument(
+                                                                        "name",
+                                                                        StringArgumentType.greedyString()
+                                                                )
+                                                                .executes(
+                                                                        context ->
+                                                                                setTeamName(
+                                                                                        context.getSource(),
+                                                                                        SoccerTeamSide.BLUE,
+                                                                                        StringArgumentType.getString(
+                                                                                                context,
+                                                                                                "name"
+                                                                                        )
                                                                                 )
                                                                 )
                                                 )
@@ -716,16 +817,20 @@ public final class SoccerCommands {
                 field.getBallSpawn()
         );
 
-        sendPointStatus(
-                source,
-                "Spawn rojo",
-                field.getRedSpawn()
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§8- §7Spawns rojos: §f"
+                                + field.getRedSpawns().size()
+                ),
+                false
         );
 
-        sendPointStatus(
-                source,
-                "Spawn azul",
-                field.getBlueSpawn()
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§8- §7Spawns azules: §f"
+                                + field.getBlueSpawns().size()
+                ),
+                false
         );
 
         sendPointStatus(
@@ -874,6 +979,254 @@ public final class SoccerCommands {
         return 1;
     }
 
+    private static int addTeamSpawn(
+            CommandSourceStack source,
+            String fieldId,
+            SoccerTeamSide side
+    ) {
+        SoccerField field =
+                getRequiredField(
+                        source,
+                        fieldId
+                );
+
+        if (field == null) {
+            return 0;
+        }
+
+        String currentDimension =
+                source.getLevel()
+                        .dimension()
+                        .location()
+                        .toString();
+
+        if (!field.getDimensionId().equals(currentDimension)) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cLa cancha pertenece a §f"
+                                    + field.getDimensionId()
+                    )
+            );
+
+            return 0;
+        }
+
+        BlockPos position =
+                getSourceBlockPosition(source);
+
+        int previousSize =
+                side == SoccerTeamSide.RED
+                        ? field.getRedSpawns().size()
+                        : field.getBlueSpawns().size();
+
+        if (side == SoccerTeamSide.RED) {
+            field.addRedSpawn(position);
+        } else {
+            field.addBlueSpawn(position);
+        }
+
+        int newSize =
+                side == SoccerTeamSide.RED
+                        ? field.getRedSpawns().size()
+                        : field.getBlueSpawns().size();
+
+        if (newSize == previousSize) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cYa existe un spawn en esa posición."
+                    )
+            );
+            return 0;
+        }
+
+        SoccerFieldManager.save(source.getServer());
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§aSpawn "
+                                + side.getDisplayName()
+                                + " agregado como punto §f"
+                                + newSize
+                                + "§a en §f"
+                                + formatPosition(position)
+                ),
+                true
+        );
+
+        return 1;
+    }
+
+    private static int listTeamSpawns(
+            CommandSourceStack source,
+            String fieldId,
+            SoccerTeamSide side
+    ) {
+        SoccerField field =
+                getRequiredField(source, fieldId);
+
+        if (field == null) {
+            return 0;
+        }
+
+        java.util.List<BlockPos> spawns =
+                side == SoccerTeamSide.RED
+                        ? field.getRedSpawns()
+                        : field.getBlueSpawns();
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§6Spawns del equipo "
+                                + side.getDisplayName()
+                                + " §7("
+                                + spawns.size()
+                                + ")"
+                ),
+                false
+        );
+
+        if (spawns.isEmpty()) {
+            source.sendSuccess(
+                    () -> Component.literal(
+                            "§8- §7No hay puntos registrados."
+                    ),
+                    false
+            );
+            return 0;
+        }
+
+        for (int index = 0; index < spawns.size(); index++) {
+            int visibleNumber = index + 1;
+            BlockPos position = spawns.get(index);
+
+            source.sendSuccess(
+                    () -> Component.literal(
+                            "§8- §f"
+                                    + visibleNumber
+                                    + "§7: §f"
+                                    + formatPosition(position)
+                    ),
+                    false
+            );
+        }
+
+        return spawns.size();
+    }
+
+    private static int removeTeamSpawn(
+            CommandSourceStack source,
+            String fieldId,
+            SoccerTeamSide side,
+            int visibleNumber
+    ) {
+        SoccerField field =
+                getRequiredField(source, fieldId);
+
+        if (field == null) {
+            return 0;
+        }
+
+        int internalIndex = visibleNumber - 1;
+
+        boolean removed =
+                side == SoccerTeamSide.RED
+                        ? field.removeRedSpawn(internalIndex)
+                        : field.removeBlueSpawn(internalIndex);
+
+        if (!removed) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cNo existe el spawn número §f"
+                                    + visibleNumber
+                                    + "§c."
+                    )
+            );
+            return 0;
+        }
+
+        SoccerFieldManager.save(source.getServer());
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§eSpawn "
+                                + side.getDisplayName()
+                                + " eliminado: §f"
+                                + visibleNumber
+                ),
+                true
+        );
+
+        return 1;
+    }
+
+    private static int clearTeamSpawns(
+            CommandSourceStack source,
+            String fieldId,
+            SoccerTeamSide side
+    ) {
+        SoccerField field =
+                getRequiredField(source, fieldId);
+
+        if (field == null) {
+            return 0;
+        }
+
+        if (side == SoccerTeamSide.RED) {
+            field.clearRedSpawns();
+        } else {
+            field.clearBlueSpawns();
+        }
+
+        SoccerFieldManager.save(source.getServer());
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§eSe eliminaron todos los spawns "
+                                + side.getDisplayName()
+                                + "."
+                ),
+                true
+        );
+
+        return 1;
+    }
+
+    private static int setTeamName(
+            CommandSourceStack source,
+            SoccerTeamSide side,
+            String requestedName
+    ) {
+        if (!SoccerMatchManager.setTeamName(
+                source.getServer(),
+                side,
+                requestedName
+        )) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cEl nombre no es válido."
+                    )
+            );
+            return 0;
+        }
+
+        String finalName =
+                SoccerMatchManager.getTeamName(
+                        source.getServer(),
+                        side
+                );
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§aEl equipo "
+                                + side.getDisplayName()
+                                + " ahora se llama §f"
+                                + finalName
+                ),
+                true
+        );
+
+        return 1;
+    }
+
     private static int addPlayerToTeam(
             CommandSourceStack source,
             ServerPlayer player,
@@ -934,7 +1287,8 @@ public final class SoccerCommands {
 
         source.sendSuccess(
                 () -> Component.literal(
-                        "§c§lEQUIPO ROJO"
+                        "§c§lEQUIPO ROJO §7- §f"
+                                + SoccerMatchManager.getRedTeamName(server)
                 ),
                 false
         );
@@ -947,7 +1301,8 @@ public final class SoccerCommands {
 
         source.sendSuccess(
                 () -> Component.literal(
-                        "§9§lEQUIPO AZUL"
+                        "§9§lEQUIPO AZUL §7- §f"
+                                + SoccerMatchManager.getBlueTeamName(server)
                 ),
                 false
         );
@@ -1391,31 +1746,6 @@ public final class SoccerCommands {
             }
         },
 
-        RED_SPAWN(
-                "red_spawn",
-                "Spawn rojo"
-        ) {
-            @Override
-            void set(
-                    SoccerField field,
-                    BlockPos position
-            ) {
-                field.setRedSpawn(position);
-            }
-        },
-
-        BLUE_SPAWN(
-                "blue_spawn",
-                "Spawn azul"
-        ) {
-            @Override
-            void set(
-                    SoccerField field,
-                    BlockPos position
-            ) {
-                field.setBlueSpawn(position);
-            }
-        },
 
         RED_GOAL_POSITION_1(
                 "red_goal_pos1",

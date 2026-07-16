@@ -273,7 +273,7 @@ public final class SoccerFieldManager {
 
     private static final class FieldStorageData {
 
-        private int version = 2;
+        private int version = 3;
 
         private List<FieldData> fields =
                 new ArrayList<>();
@@ -290,8 +290,11 @@ public final class SoccerFieldManager {
         private PositionData center;
         private PositionData ballSpawn;
 
-        private PositionData redSpawn;
-        private PositionData blueSpawn;
+        private List<PositionData> redSpawns =
+                new ArrayList<>();
+
+        private List<PositionData> blueSpawns =
+                new ArrayList<>();
 
         private PositionData redGoalPosition1;
         private PositionData redGoalPosition2;
@@ -327,15 +330,25 @@ public final class SoccerFieldManager {
                             field.getBallSpawn()
                     );
 
-            data.redSpawn =
-                    PositionData.fromBlockPos(
-                            field.getRedSpawn()
-                    );
+            for (BlockPos position
+                    : field.getRedSpawns()) {
 
-            data.blueSpawn =
-                    PositionData.fromBlockPos(
-                            field.getBlueSpawn()
-                    );
+                data.redSpawns.add(
+                        PositionData.fromBlockPos(
+                                position
+                        )
+                );
+            }
+
+            for (BlockPos position
+                    : field.getBlueSpawns()) {
+
+                data.blueSpawns.add(
+                        PositionData.fromBlockPos(
+                                position
+                        )
+                );
+            }
 
             data.redGoalPosition1 =
                     PositionData.fromBlockPos(
@@ -396,12 +409,52 @@ public final class SoccerFieldManager {
                     PositionData.toBlockPos(ballSpawn)
             );
 
-            field.setRedSpawn(
-                    PositionData.toBlockPos(redSpawn)
+            List<BlockPos> loadedRedSpawns =
+                    new ArrayList<>();
+
+            if (redSpawns != null) {
+                for (PositionData positionData
+                        : redSpawns) {
+
+                    BlockPos position =
+                            PositionData.toBlockPos(
+                                    positionData
+                            );
+
+                    if (position != null) {
+                        loadedRedSpawns.add(
+                                position
+                        );
+                    }
+                }
+            }
+
+            field.setRedSpawns(
+                    loadedRedSpawns
             );
 
-            field.setBlueSpawn(
-                    PositionData.toBlockPos(blueSpawn)
+            List<BlockPos> loadedBlueSpawns =
+                    new ArrayList<>();
+
+            if (blueSpawns != null) {
+                for (PositionData positionData
+                        : blueSpawns) {
+
+                    BlockPos position =
+                            PositionData.toBlockPos(
+                                    positionData
+                            );
+
+                    if (position != null) {
+                        loadedBlueSpawns.add(
+                                position
+                        );
+                    }
+                }
+            }
+
+            field.setBlueSpawns(
+                    loadedBlueSpawns
             );
 
             field.setRedGoalPosition1(

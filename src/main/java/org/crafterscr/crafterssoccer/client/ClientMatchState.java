@@ -3,7 +3,7 @@ package org.crafterscr.crafterssoccer.client;
 import org.crafterscr.crafterssoccer.network.MatchStatePayload;
 
 /**
- * Estado local del partido utilizado por el HUD.
+ * Estado local utilizado por el HUD.
  */
 public final class ClientMatchState {
 
@@ -13,9 +13,18 @@ public final class ClientMatchState {
     private static String state = "";
     private static String message = "";
 
+    private static String redTeamName =
+            "Equipo Rojo";
+
+    private static String blueTeamName =
+            "Equipo Azul";
+
     private static int redScore;
     private static int blueScore;
     private static int remainingTicks;
+
+    private static boolean participant;
+    private static String playerTeamSide = "";
 
     private ClientMatchState() {
     }
@@ -23,21 +32,42 @@ public final class ClientMatchState {
     public static void apply(
             MatchStatePayload payload
     ) {
-        active = payload.active();
-        fieldId = payload.fieldId();
+        if (!payload.active()) {
+            reset();
+            return;
+        }
 
-        redScore = payload.redScore();
-        blueScore = payload.blueScore();
+        active = true;
+
+        fieldId =
+                payload.fieldId();
+
+        redTeamName =
+                payload.redTeamName();
+
+        blueTeamName =
+                payload.blueTeamName();
+
+        redScore =
+                payload.redScore();
+
+        blueScore =
+                payload.blueScore();
 
         remainingTicks =
                 payload.remainingTicks();
 
-        state = payload.state();
-        message = payload.message();
+        state =
+                payload.state();
 
-        if (!active) {
-            reset();
-        }
+        message =
+                payload.message();
+
+        participant =
+                payload.participant();
+
+        playerTeamSide =
+                payload.playerTeamSide();
     }
 
     public static void reset() {
@@ -47,9 +77,18 @@ public final class ClientMatchState {
         state = "";
         message = "";
 
+        redTeamName =
+                "Equipo Rojo";
+
+        blueTeamName =
+                "Equipo Azul";
+
         redScore = 0;
         blueScore = 0;
         remainingTicks = 0;
+
+        participant = false;
+        playerTeamSide = "";
     }
 
     public static boolean isActive() {
@@ -68,6 +107,14 @@ public final class ClientMatchState {
         return message;
     }
 
+    public static String getRedTeamName() {
+        return redTeamName;
+    }
+
+    public static String getBlueTeamName() {
+        return blueTeamName;
+    }
+
     public static int getRedScore() {
         return redScore;
     }
@@ -78,5 +125,25 @@ public final class ClientMatchState {
 
     public static int getRemainingTicks() {
         return remainingTicks;
+    }
+
+    public static boolean isParticipant() {
+        return participant;
+    }
+
+    public static String getPlayerTeamSide() {
+        return playerTeamSide;
+    }
+
+    public static String getLocalTeamName() {
+        if ("RED".equals(playerTeamSide)) {
+            return redTeamName;
+        }
+
+        if ("BLUE".equals(playerTeamSide)) {
+            return blueTeamName;
+        }
+
+        return "";
     }
 }
