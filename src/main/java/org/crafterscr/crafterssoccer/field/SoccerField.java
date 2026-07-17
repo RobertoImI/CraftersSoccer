@@ -38,6 +38,15 @@ public final class SoccerField {
     private BlockPos blueGoalPosition1;
     private BlockPos blueGoalPosition2;
 
+    /*
+     * Áreas donde cada portero puede usar las manos.
+     */
+    private BlockPos redGoalkeeperAreaPosition1;
+    private BlockPos redGoalkeeperAreaPosition2;
+
+    private BlockPos blueGoalkeeperAreaPosition1;
+    private BlockPos blueGoalkeeperAreaPosition2;
+
     public SoccerField(
             String id,
             String dimensionId
@@ -146,6 +155,39 @@ public final class SoccerField {
     ) {
         this.blueGoalPosition2 =
                 immutable(position);
+    }
+
+
+    public BlockPos getRedGoalkeeperAreaPosition1() {
+        return redGoalkeeperAreaPosition1;
+    }
+
+    public void setRedGoalkeeperAreaPosition1(BlockPos position) {
+        this.redGoalkeeperAreaPosition1 = immutable(position);
+    }
+
+    public BlockPos getRedGoalkeeperAreaPosition2() {
+        return redGoalkeeperAreaPosition2;
+    }
+
+    public void setRedGoalkeeperAreaPosition2(BlockPos position) {
+        this.redGoalkeeperAreaPosition2 = immutable(position);
+    }
+
+    public BlockPos getBlueGoalkeeperAreaPosition1() {
+        return blueGoalkeeperAreaPosition1;
+    }
+
+    public void setBlueGoalkeeperAreaPosition1(BlockPos position) {
+        this.blueGoalkeeperAreaPosition1 = immutable(position);
+    }
+
+    public BlockPos getBlueGoalkeeperAreaPosition2() {
+        return blueGoalkeeperAreaPosition2;
+    }
+
+    public void setBlueGoalkeeperAreaPosition2(BlockPos position) {
+        this.blueGoalkeeperAreaPosition2 = immutable(position);
     }
 
     public List<BlockPos> getRedSpawns() {
@@ -264,6 +306,39 @@ public final class SoccerField {
         return isComplete()
                 && !redSpawns.isEmpty()
                 && !blueSpawns.isEmpty();
+    }
+
+
+    public boolean hasRedGoalkeeperArea() {
+        return redGoalkeeperAreaPosition1 != null
+                && redGoalkeeperAreaPosition2 != null;
+    }
+
+    public boolean hasBlueGoalkeeperArea() {
+        return blueGoalkeeperAreaPosition1 != null
+                && blueGoalkeeperAreaPosition2 != null;
+    }
+
+    public AABB getRedGoalkeeperAreaBounds() {
+        if (!hasRedGoalkeeperArea()) {
+            return null;
+        }
+
+        return createBox(
+                redGoalkeeperAreaPosition1,
+                redGoalkeeperAreaPosition2
+        );
+    }
+
+    public AABB getBlueGoalkeeperAreaBounds() {
+        if (!hasBlueGoalkeeperArea()) {
+            return null;
+        }
+
+        return createBox(
+                blueGoalkeeperAreaPosition1,
+                blueGoalkeeperAreaPosition2
+        );
     }
 
     public AABB getFieldBounds() {

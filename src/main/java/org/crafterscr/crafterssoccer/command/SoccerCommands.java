@@ -316,6 +316,22 @@ public final class SoccerCommands {
                 )
 
                 .then(
+                        Commands.literal("goalkeeperarea")
+                                .then(
+                                        createGoalkeeperAreaCommands(
+                                                "red",
+                                                SoccerTeamSide.RED
+                                        )
+                                )
+                                .then(
+                                        createGoalkeeperAreaCommands(
+                                                "blue",
+                                                SoccerTeamSide.BLUE
+                                        )
+                                )
+                )
+
+                .then(
                         Commands.literal("clear")
                                 .then(
                                         fieldArgument()
@@ -435,6 +451,59 @@ public final class SoccerCommands {
 
     private static com.mojang.brigadier.builder
             .LiteralArgumentBuilder<CommandSourceStack>
+    createGoalkeeperAreaCommands(
+            String commandName,
+            SoccerTeamSide side
+    ) {
+        return Commands.literal(commandName)
+                .then(
+                        Commands.literal("pos1")
+                                .then(
+                                        fieldArgument()
+                                                .executes(
+                                                        context ->
+                                                                setGoalkeeperAreaPosition(
+                                                                        context.getSource(),
+                                                                        getFieldId(context),
+                                                                        side,
+                                                                        true
+                                                                )
+                                                )
+                                )
+                )
+                .then(
+                        Commands.literal("pos2")
+                                .then(
+                                        fieldArgument()
+                                                .executes(
+                                                        context ->
+                                                                setGoalkeeperAreaPosition(
+                                                                        context.getSource(),
+                                                                        getFieldId(context),
+                                                                        side,
+                                                                        false
+                                                                )
+                                                )
+                                )
+                )
+                .then(
+                        Commands.literal("clear")
+                                .then(
+                                        fieldArgument()
+                                                .executes(
+                                                        context ->
+                                                                clearGoalkeeperArea(
+                                                                        context.getSource(),
+                                                                        getFieldId(context),
+                                                                        side
+                                                                )
+                                                )
+                                )
+                );
+    }
+
+    private static com.mojang.brigadier.builder
+            .LiteralArgumentBuilder<CommandSourceStack>
     createTeamCommands() {
 
         return Commands.literal("team")
@@ -502,6 +571,37 @@ public final class SoccerCommands {
                                 )
 
                                 .then(
+                                        Commands.literal("goalkeeper")
+                                                .then(
+                                                        Commands.argument(
+                                                                        "player",
+                                                                        EntityArgument.player()
+                                                                )
+                                                                .executes(
+                                                                        context ->
+                                                                                setGoalkeeper(
+                                                                                        context.getSource(),
+                                                                                        SoccerTeamSide.RED,
+                                                                                        EntityArgument.getPlayer(
+                                                                                                context,
+                                                                                                "player"
+                                                                                        )
+                                                                                )
+                                                                )
+                                                )
+                                                .then(
+                                                        Commands.literal("clear")
+                                                                .executes(
+                                                                        context ->
+                                                                                clearGoalkeeper(
+                                                                                        context.getSource(),
+                                                                                        SoccerTeamSide.RED
+                                                                                )
+                                                                )
+                                                )
+                                )
+
+                                .then(
                                         Commands.literal("clear")
                                                 .executes(
                                                         context ->
@@ -562,6 +662,37 @@ public final class SoccerCommands {
                                                                                                 context,
                                                                                                 "name"
                                                                                         )
+                                                                                )
+                                                                )
+                                                )
+                                )
+
+                                .then(
+                                        Commands.literal("goalkeeper")
+                                                .then(
+                                                        Commands.argument(
+                                                                        "player",
+                                                                        EntityArgument.player()
+                                                                )
+                                                                .executes(
+                                                                        context ->
+                                                                                setGoalkeeper(
+                                                                                        context.getSource(),
+                                                                                        SoccerTeamSide.BLUE,
+                                                                                        EntityArgument.getPlayer(
+                                                                                                context,
+                                                                                                "player"
+                                                                                        )
+                                                                                )
+                                                                )
+                                                )
+                                                .then(
+                                                        Commands.literal("clear")
+                                                                .executes(
+                                                                        context ->
+                                                                                clearGoalkeeper(
+                                                                                        context.getSource(),
+                                                                                        SoccerTeamSide.BLUE
                                                                                 )
                                                                 )
                                                 )
@@ -904,6 +1035,26 @@ public final class SoccerCommands {
                 false
         );
 
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§8- §7Área portero rojo: "
+                                + (field.hasRedGoalkeeperArea()
+                                ? "§aDEFINIDA"
+                                : "§cNO DEFINIDA")
+                ),
+                false
+        );
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§8- §7Área portero azul: "
+                                + (field.hasBlueGoalkeeperArea()
+                                ? "§aDEFINIDA"
+                                : "§cNO DEFINIDA")
+                ),
+                false
+        );
+
         sendPointStatus(
                 source,
                 "Portería roja 1",
@@ -1043,6 +1194,176 @@ public final class SoccerCommands {
                 () -> Component.literal(
                         "§ePunto eliminado: §f"
                                 + selected.displayName
+                ),
+                true
+        );
+
+        return 1;
+    }
+
+    private static int setGoalkeeperAreaPosition(
+            CommandSourceStack source,
+            String fieldId,
+            SoccerTeamSide side,
+            boolean firstPosition
+    ) {
+        SoccerField field =
+                getRequiredField(source, fieldId);
+
+        if (field == null) {
+            return 0;
+        }
+
+        String currentDimension =
+                source.getLevel()
+                        .dimension()
+                        .location()
+                        .toString();
+
+        if (!field.getDimensionId().equals(currentDimension)) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cLa cancha pertenece a §f"
+                                    + field.getDimensionId()
+                    )
+            );
+            return 0;
+        }
+
+        BlockPos position =
+                getSourceBlockPosition(source);
+
+        if (side == SoccerTeamSide.RED) {
+            if (firstPosition) {
+                field.setRedGoalkeeperAreaPosition1(position);
+            } else {
+                field.setRedGoalkeeperAreaPosition2(position);
+            }
+        } else {
+            if (firstPosition) {
+                field.setBlueGoalkeeperAreaPosition1(position);
+            } else {
+                field.setBlueGoalkeeperAreaPosition2(position);
+            }
+        }
+
+        SoccerFieldManager.save(source.getServer());
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§aÁrea del portero "
+                                + side.getDisplayName()
+                                + " pos"
+                                + (firstPosition ? "1" : "2")
+                                + " definida en §f"
+                                + formatPosition(position)
+                ),
+                true
+        );
+
+        return 1;
+    }
+
+    private static int clearGoalkeeperArea(
+            CommandSourceStack source,
+            String fieldId,
+            SoccerTeamSide side
+    ) {
+        SoccerField field =
+                getRequiredField(source, fieldId);
+
+        if (field == null) {
+            return 0;
+        }
+
+        if (side == SoccerTeamSide.RED) {
+            field.setRedGoalkeeperAreaPosition1(null);
+            field.setRedGoalkeeperAreaPosition2(null);
+        } else {
+            field.setBlueGoalkeeperAreaPosition1(null);
+            field.setBlueGoalkeeperAreaPosition2(null);
+        }
+
+        SoccerFieldManager.save(source.getServer());
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§eÁrea del portero "
+                                + side.getDisplayName()
+                                + " eliminada."
+                ),
+                true
+        );
+
+        return 1;
+    }
+
+    private static int setGoalkeeper(
+            CommandSourceStack source,
+            SoccerTeamSide side,
+            ServerPlayer player
+    ) {
+        SoccerTeamSide playerTeam =
+                SoccerMatchManager.getPlayerTeam(
+                        source.getServer(),
+                        player.getUUID()
+                );
+
+        if (playerTeam != side) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cEl jugador debe pertenecer primero al equipo "
+                                    + side.getDisplayName()
+                                    + "."
+                    )
+            );
+            return 0;
+        }
+
+        if (!SoccerMatchManager.setGoalkeeper(
+                source.getServer(),
+                side,
+                player.getUUID()
+        )) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cNo se pudo asignar el portero."
+                    )
+            );
+            return 0;
+        }
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§a"
+                                + player.getGameProfile().getName()
+                                + " ahora es portero de §f"
+                                + SoccerMatchManager.getTeamName(
+                                source.getServer(),
+                                side
+                        )
+                ),
+                true
+        );
+
+        return 1;
+    }
+
+    private static int clearGoalkeeper(
+            CommandSourceStack source,
+            SoccerTeamSide side
+    ) {
+        SoccerMatchManager.setGoalkeeper(
+                source.getServer(),
+                side,
+                null
+        );
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§ePortero eliminado del equipo "
+                                + side.getDisplayName()
+                                + "."
                 ),
                 true
         );
@@ -1946,6 +2267,58 @@ public final class SoccerCommands {
             }
         },
 
+
+        RED_GOALKEEPER_AREA_POSITION_1(
+                "red_goalkeeper_area_pos1",
+                "Área portero rojo 1"
+        ) {
+            @Override
+            void set(
+                    SoccerField field,
+                    BlockPos position
+            ) {
+                field.setRedGoalkeeperAreaPosition1(position);
+            }
+        },
+
+        RED_GOALKEEPER_AREA_POSITION_2(
+                "red_goalkeeper_area_pos2",
+                "Área portero rojo 2"
+        ) {
+            @Override
+            void set(
+                    SoccerField field,
+                    BlockPos position
+            ) {
+                field.setRedGoalkeeperAreaPosition2(position);
+            }
+        },
+
+        BLUE_GOALKEEPER_AREA_POSITION_1(
+                "blue_goalkeeper_area_pos1",
+                "Área portero azul 1"
+        ) {
+            @Override
+            void set(
+                    SoccerField field,
+                    BlockPos position
+            ) {
+                field.setBlueGoalkeeperAreaPosition1(position);
+            }
+        },
+
+        BLUE_GOALKEEPER_AREA_POSITION_2(
+                "blue_goalkeeper_area_pos2",
+                "Área portero azul 2"
+        ) {
+            @Override
+            void set(
+                    SoccerField field,
+                    BlockPos position
+            ) {
+                field.setBlueGoalkeeperAreaPosition2(position);
+            }
+        },
 
         RED_GOAL_POSITION_1(
                 "red_goal_pos1",

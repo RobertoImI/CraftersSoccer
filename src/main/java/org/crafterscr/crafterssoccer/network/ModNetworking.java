@@ -2,6 +2,7 @@ package org.crafterscr.crafterssoccer.network;
 
 import org.crafterscr.crafterssoccer.client.ClientMatchState;
 import org.crafterscr.crafterssoccer.entity.SoccerBallEntity;
+import org.crafterscr.crafterssoccer.match.GoalkeeperManager;
 
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -15,7 +16,7 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
  */
 public final class ModNetworking {
 
-    private static final String NETWORK_VERSION = "3";
+    private static final String NETWORK_VERSION = "4";
 
     private ModNetworking() {
     }
@@ -32,6 +33,12 @@ public final class ModNetworking {
                 KickBallPayload.TYPE,
                 KickBallPayload.STREAM_CODEC,
                 ModNetworking::handleKickBall
+        );
+
+        registrar.playToServer(
+                GoalkeeperActionPayload.TYPE,
+                GoalkeeperActionPayload.STREAM_CODEC,
+                ModNetworking::handleGoalkeeperAction
         );
 
         registrar.playToClient(
@@ -63,6 +70,24 @@ public final class ModNetworking {
         ball.kick(
                 player,
                 payload.charge()
+        );
+    }
+
+    private static void handleGoalkeeperAction(
+            GoalkeeperActionPayload payload,
+            IPayloadContext context
+    ) {
+        if (!(context.player()
+                instanceof ServerPlayer player)) {
+            return;
+        }
+
+        context.enqueueWork(
+                () -> GoalkeeperManager.handleAction(
+                        player.getServer(),
+                        player,
+                        payload.ballEntityId()
+                )
         );
     }
 

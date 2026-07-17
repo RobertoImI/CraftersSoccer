@@ -273,7 +273,7 @@ public final class SoccerFieldManager {
 
     private static final class FieldStorageData {
 
-        private int version = 3;
+        private int version = 4;
 
         private List<FieldData> fields =
                 new ArrayList<>();
@@ -301,6 +301,11 @@ public final class SoccerFieldManager {
 
         private PositionData blueGoalPosition1;
         private PositionData blueGoalPosition2;
+
+        private PositionData redGoalkeeperAreaPosition1;
+        private PositionData redGoalkeeperAreaPosition2;
+        private PositionData blueGoalkeeperAreaPosition1;
+        private PositionData blueGoalkeeperAreaPosition2;
 
         private static FieldData fromField(
                 SoccerField field
@@ -368,6 +373,26 @@ public final class SoccerFieldManager {
             data.blueGoalPosition2 =
                     PositionData.fromBlockPos(
                             field.getBlueGoalPosition2()
+                    );
+
+            data.redGoalkeeperAreaPosition1 =
+                    PositionData.fromBlockPos(
+                            field.getRedGoalkeeperAreaPosition1()
+                    );
+
+            data.redGoalkeeperAreaPosition2 =
+                    PositionData.fromBlockPos(
+                            field.getRedGoalkeeperAreaPosition2()
+                    );
+
+            data.blueGoalkeeperAreaPosition1 =
+                    PositionData.fromBlockPos(
+                            field.getBlueGoalkeeperAreaPosition1()
+                    );
+
+            data.blueGoalkeeperAreaPosition2 =
+                    PositionData.fromBlockPos(
+                            field.getBlueGoalkeeperAreaPosition2()
                     );
 
             return data;
@@ -478,6 +503,30 @@ public final class SoccerFieldManager {
             field.setBlueGoalPosition2(
                     PositionData.toBlockPos(
                             blueGoalPosition2
+                    )
+            );
+
+            field.setRedGoalkeeperAreaPosition1(
+                    PositionData.toBlockPos(
+                            redGoalkeeperAreaPosition1
+                    )
+            );
+
+            field.setRedGoalkeeperAreaPosition2(
+                    PositionData.toBlockPos(
+                            redGoalkeeperAreaPosition2
+                    )
+            );
+
+            field.setBlueGoalkeeperAreaPosition1(
+                    PositionData.toBlockPos(
+                            blueGoalkeeperAreaPosition1
+                    )
+            );
+
+            field.setBlueGoalkeeperAreaPosition2(
+                    PositionData.toBlockPos(
+                            blueGoalkeeperAreaPosition2
                     )
             );
 

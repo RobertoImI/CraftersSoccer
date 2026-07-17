@@ -587,6 +587,10 @@ public final class SoccerMatch {
             SoccerBallEntity ball,
             SoccerField field
     ) {
+        if (ball.isHeldByGoalkeeper()) {
+            ball.releaseFromGoalkeeper(Vec3.ZERO);
+        }
+
         Vec3 position =
                 field.getBallSpawnPosition();
 

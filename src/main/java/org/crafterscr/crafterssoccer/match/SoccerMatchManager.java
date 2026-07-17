@@ -84,7 +84,9 @@ public final class SoccerMatchManager {
                 RED_PLAYERS,
                 BLUE_PLAYERS,
                 redTeamName,
-                blueTeamName
+                blueTeamName,
+                redGoalkeeper,
+                blueGoalkeeper
         );
     }
 
@@ -284,7 +286,6 @@ public final class SoccerMatchManager {
                 : blueGoalkeeper;
     }
 
-    /** Se utilizará en el bloque 2. */
     public static boolean setGoalkeeper(
             MinecraftServer server,
             SoccerTeamSide side,
@@ -303,8 +304,19 @@ public final class SoccerMatchManager {
             blueGoalkeeper = playerId;
         }
 
-        save(server);
+        saveAndSynchronize(server);
         return true;
+    }
+
+    public static boolean isGoalkeeper(
+            MinecraftServer server,
+            UUID playerId
+    ) {
+        ensureLoaded(server);
+
+        return playerId != null
+                && (playerId.equals(redGoalkeeper)
+                || playerId.equals(blueGoalkeeper));
     }
 
     public static SoccerMatch getActiveMatch(
@@ -335,7 +347,9 @@ public final class SoccerMatchManager {
                 RED_PLAYERS,
                 BLUE_PLAYERS,
                 redTeamName,
-                blueTeamName
+                blueTeamName,
+                redGoalkeeper,
+                blueGoalkeeper
         );
 
         activeMatch.start(
@@ -426,6 +440,12 @@ public final class SoccerMatchManager {
                 BLUE_PLAYERS
         );
 
+        GoalkeeperManager.tick(
+                server,
+                activeMatch,
+                field
+        );
+
         synchronizationTicker++;
 
         if (synchronizationTicker >= 10) {
@@ -449,7 +469,9 @@ public final class SoccerMatchManager {
                 RED_PLAYERS,
                 BLUE_PLAYERS,
                 redTeamName,
-                blueTeamName
+                blueTeamName,
+                redGoalkeeper,
+                blueGoalkeeper
         );
 
         if (activeMatch == null) {
@@ -496,6 +518,16 @@ public final class SoccerMatchManager {
                 player.getUUID()
         );
 
+        boolean goalkeeper =
+                isGoalkeeper(server, player.getUUID());
+
+        GoalkeeperManager.ClientStatus goalkeeperStatus =
+                GoalkeeperManager.getClientStatus(
+                        server,
+                        match,
+                        player
+                );
+
         return new MatchStatePayload(
                 true,
                 match.getFieldId(),
@@ -507,7 +539,12 @@ public final class SoccerMatchManager {
                 match.getState().name(),
                 match.getMessage(),
                 playerSide != null,
-                playerSide == null ? "" : playerSide.name()
+                playerSide == null ? "" : playerSide.name(),
+                goalkeeper,
+                goalkeeperStatus.inArea(),
+                goalkeeperStatus.available(),
+                goalkeeperStatus.holdingBall(),
+                goalkeeperStatus.cooldownTicks()
         );
     }
 
@@ -555,7 +592,9 @@ public final class SoccerMatchManager {
                 RED_PLAYERS,
                 BLUE_PLAYERS,
                 redTeamName,
-                blueTeamName
+                blueTeamName,
+                redGoalkeeper,
+                blueGoalkeeper
         );
 
         synchronize(server);

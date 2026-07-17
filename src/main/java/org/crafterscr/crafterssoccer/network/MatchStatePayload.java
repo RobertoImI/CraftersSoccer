@@ -23,7 +23,12 @@ public record MatchStatePayload(
         String state,
         String message,
         boolean participant,
-        String playerTeamSide
+        String playerTeamSide,
+        boolean goalkeeper,
+        boolean goalkeeperInArea,
+        boolean goalkeeperAvailable,
+        boolean goalkeeperHoldingBall,
+        int goalkeeperCooldownTicks
 ) implements CustomPacketPayload {
 
     public static final Type<MatchStatePayload> TYPE =
@@ -101,6 +106,31 @@ public record MatchStatePayload(
                 buffer,
                 payload.playerTeamSide()
         );
+
+        ByteBufCodecs.BOOL.encode(
+                buffer,
+                payload.goalkeeper()
+        );
+
+        ByteBufCodecs.BOOL.encode(
+                buffer,
+                payload.goalkeeperInArea()
+        );
+
+        ByteBufCodecs.BOOL.encode(
+                buffer,
+                payload.goalkeeperAvailable()
+        );
+
+        ByteBufCodecs.BOOL.encode(
+                buffer,
+                payload.goalkeeperHoldingBall()
+        );
+
+        ByteBufCodecs.VAR_INT.encode(
+                buffer,
+                payload.goalkeeperCooldownTicks()
+        );
     }
 
     private static MatchStatePayload decode(
@@ -117,7 +147,12 @@ public record MatchStatePayload(
                 ByteBufCodecs.STRING_UTF8.decode(buffer),
                 ByteBufCodecs.STRING_UTF8.decode(buffer),
                 ByteBufCodecs.BOOL.decode(buffer),
-                ByteBufCodecs.STRING_UTF8.decode(buffer)
+                ByteBufCodecs.STRING_UTF8.decode(buffer),
+                ByteBufCodecs.BOOL.decode(buffer),
+                ByteBufCodecs.BOOL.decode(buffer),
+                ByteBufCodecs.BOOL.decode(buffer),
+                ByteBufCodecs.BOOL.decode(buffer),
+                ByteBufCodecs.VAR_INT.decode(buffer)
         );
     }
 
@@ -133,7 +168,12 @@ public record MatchStatePayload(
                 "",
                 "",
                 false,
-                ""
+                "",
+                false,
+                false,
+                false,
+                false,
+                0
         );
     }
 

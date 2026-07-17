@@ -32,6 +32,10 @@ public final class SoccerCrosshairGui {
                                 minecraft
                         );
 
+        boolean goalkeeperIndicator =
+                ClientMatchState.isGoalkeeper()
+                        && ClientMatchState.isGoalkeeperInArea();
+
         boolean charging =
                 ClientSoccerState.isCharging();
 
@@ -39,7 +43,9 @@ public final class SoccerCrosshairGui {
          * Solo mostrar cuando puede comenzar un tiro
          * o mientras ya está cargando.
          */
-        if (!lookingAtBall && !charging) {
+        if (!lookingAtBall
+                && !charging
+                && !goalkeeperIndicator) {
             return;
         }
 
@@ -48,6 +54,26 @@ public final class SoccerCrosshairGui {
 
         int centerY =
                 graphics.guiHeight() / 2;
+
+        if (goalkeeperIndicator) {
+            int goalkeeperColor;
+
+            if (ClientMatchState.isGoalkeeperHoldingBall()) {
+                goalkeeperColor = 0xFF55FFFF;
+            } else if (ClientMatchState.isGoalkeeperAvailable()) {
+                goalkeeperColor = 0xFFFFFFFF;
+            } else {
+                goalkeeperColor = 0xFF777777;
+            }
+
+            graphics.drawCenteredString(
+                    minecraft.font,
+                    "G",
+                    centerX,
+                    centerY + 11,
+                    goalkeeperColor
+            );
+        }
 
         double lookY =
                 minecraft.player

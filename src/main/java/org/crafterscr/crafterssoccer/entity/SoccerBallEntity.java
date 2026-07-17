@@ -154,6 +154,13 @@ public class SoccerBallEntity extends Entity {
      */
     private long ignoredEntityUntilGameTime;
 
+    /*
+     * Posesión temporal del portero.
+     * Solo el servidor decide quién sostiene el balón.
+     */
+    private UUID goalkeeperHolder;
+    private long goalkeeperHoldUntilGameTime;
+
     public SoccerBallEntity(
             EntityType<? extends SoccerBallEntity> entityType,
             Level level
@@ -180,6 +187,11 @@ public class SoccerBallEntity extends Entity {
         this.previousRollDegrees =
                 this.rollDegrees;
 
+        if (!this.level().isClientSide()
+                && tickGoalkeeperHold()) {
+            return;
+        }
+
         /*
          * Primero detectar las piernas moviéndose
          * contra el balón.
@@ -201,6 +213,117 @@ public class SoccerBallEntity extends Entity {
                 this.discard();
             }
         }
+    }
+
+    /**
+     * Vincula el balón al portero durante un máximo
+     * de ticks determinado.
+     */
+    public void holdByGoalkeeper(
+            ServerPlayer player,
+            int maximumTicks
+    ) {
+        this.goalkeeperHolder = player.getUUID();
+        this.goalkeeperHoldUntilGameTime =
+                this.level().getGameTime()
+                        + Math.max(1, maximumTicks);
+
+        this.setDeltaMovement(Vec3.ZERO);
+        this.hasImpulse = true;
+    }
+
+    public boolean isHeldByGoalkeeper() {
+        return goalkeeperHolder != null;
+    }
+
+    public boolean isHeldBy(UUID playerId) {
+        return goalkeeperHolder != null
+                && goalkeeperHolder.equals(playerId);
+    }
+
+    public UUID getGoalkeeperHolder() {
+        return goalkeeperHolder;
+    }
+
+    public void releaseFromGoalkeeper(
+            Vec3 releaseVelocity
+    ) {
+        this.goalkeeperHolder = null;
+        this.goalkeeperHoldUntilGameTime = 0L;
+
+        this.setDeltaMovement(
+                SoccerBallPhysics.clampVelocity(
+                        releaseVelocity
+                )
+        );
+
+        this.hasImpulse = true;
+    }
+
+    /**
+     * Devuelve true cuando el balón fue actualizado
+     * como balón sostenido y no debe ejecutar físicas.
+     */
+    private boolean tickGoalkeeperHold() {
+        if (goalkeeperHolder == null) {
+            return false;
+        }
+
+        if (!(this.level()
+                instanceof net.minecraft.server.level.ServerLevel serverLevel)) {
+            return false;
+        }
+
+        Player foundPlayer =
+                serverLevel.getPlayerByUUID(
+                        goalkeeperHolder
+                );
+
+        if (!(foundPlayer instanceof ServerPlayer holder)) {
+            releaseFromGoalkeeper(Vec3.ZERO);
+            return false;
+        }
+
+        if (!holder.isAlive()) {
+            releaseFromGoalkeeper(Vec3.ZERO);
+            return false;
+        }
+
+        Vec3 look =
+                holder.getLookAngle();
+
+        if (look.lengthSqr() < 0.0001D) {
+            look = new Vec3(0.0D, 0.0D, 1.0D);
+        } else {
+            look = look.normalize();
+        }
+
+        if (this.level().getGameTime()
+                >= goalkeeperHoldUntilGameTime) {
+
+            releaseFromGoalkeeper(
+                    look.scale(0.30D)
+                            .add(0.0D, 0.06D, 0.0D)
+            );
+
+            return false;
+        }
+
+        Vec3 heldPosition =
+                holder.getEyePosition()
+                        .add(look.scale(0.72D))
+                        .add(0.0D, -0.42D, 0.0D);
+
+        this.setPos(
+                heldPosition.x,
+                heldPosition.y,
+                heldPosition.z
+        );
+
+        this.setDeltaMovement(Vec3.ZERO);
+        this.hasImpulse = true;
+
+        return true;
     }
 
     /**
@@ -1262,6 +1385,20 @@ public class SoccerBallEntity extends Entity {
     ) {
         if (!this.isAlive()) {
             return;
+        }
+
+        if (isHeldByGoalkeeper()
+                && !isHeldBy(player.getUUID())) {
+            return;
+        }
+
+        /*
+         * El portero puede despejar con clic izquierdo
+         * mientras sostiene la pelota.
+         */
+        if (isHeldBy(player.getUUID())) {
+            this.goalkeeperHolder = null;
+            this.goalkeeperHoldUntilGameTime = 0L;
         }
 
         double maximumDistanceSquared =

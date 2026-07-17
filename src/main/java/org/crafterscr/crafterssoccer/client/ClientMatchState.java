@@ -26,6 +26,12 @@ public final class ClientMatchState {
     private static boolean participant;
     private static String playerTeamSide = "";
 
+    private static boolean goalkeeper;
+    private static boolean goalkeeperInArea;
+    private static boolean goalkeeperAvailable;
+    private static boolean goalkeeperHoldingBall;
+    private static int goalkeeperCooldownTicks;
+
     private ClientMatchState() {
     }
 
@@ -68,6 +74,21 @@ public final class ClientMatchState {
 
         playerTeamSide =
                 payload.playerTeamSide();
+
+        goalkeeper =
+                payload.goalkeeper();
+
+        goalkeeperInArea =
+                payload.goalkeeperInArea();
+
+        goalkeeperAvailable =
+                payload.goalkeeperAvailable();
+
+        goalkeeperHoldingBall =
+                payload.goalkeeperHoldingBall();
+
+        goalkeeperCooldownTicks =
+                payload.goalkeeperCooldownTicks();
     }
 
     public static void reset() {
@@ -89,6 +110,12 @@ public final class ClientMatchState {
 
         participant = false;
         playerTeamSide = "";
+
+        goalkeeper = false;
+        goalkeeperInArea = false;
+        goalkeeperAvailable = false;
+        goalkeeperHoldingBall = false;
+        goalkeeperCooldownTicks = 0;
     }
 
     public static boolean isActive() {
@@ -145,5 +172,25 @@ public final class ClientMatchState {
         }
 
         return "";
+    }
+
+    public static boolean isGoalkeeper() {
+        return goalkeeper;
+    }
+
+    public static boolean isGoalkeeperInArea() {
+        return goalkeeperInArea;
+    }
+
+    public static boolean isGoalkeeperAvailable() {
+        return goalkeeperAvailable;
+    }
+
+    public static boolean isGoalkeeperHoldingBall() {
+        return goalkeeperHoldingBall;
+    }
+
+    public static int getGoalkeeperCooldownTicks() {
+        return goalkeeperCooldownTicks;
     }
 }

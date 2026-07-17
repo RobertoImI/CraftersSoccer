@@ -2,6 +2,7 @@ package org.crafterscr.crafterssoccer.client;
 
 import org.crafterscr.crafterssoccer.entity.SoccerBallEntity;
 import org.crafterscr.crafterssoccer.network.KickBallPayload;
+import org.crafterscr.crafterssoccer.network.GoalkeeperActionPayload;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.EntityHitResult;
@@ -47,6 +48,8 @@ public final class ClientSoccerState {
      */
     private static boolean waitForRelease;
 
+    private static boolean goalkeeperUseWasDown;
+
     private ClientSoccerState() {
     }
 
@@ -64,6 +67,8 @@ public final class ClientSoccerState {
             resetEverything();
             return;
         }
+
+        handleGoalkeeperUse(minecraft);
 
         boolean attackButtonDown =
                 minecraft.options.keyAttack.isDown();
@@ -104,6 +109,49 @@ public final class ClientSoccerState {
          * El jugador soltó el botón.
          */
         releaseKick();
+    }
+
+    /**
+     * Clic derecho del portero.
+     *
+     * El cliente solamente manda el ID del balón observado.
+     * El servidor valida equipo, área, distancia y cooldown.
+     */
+    private static void handleGoalkeeperUse(
+            Minecraft minecraft
+    ) {
+        boolean useDown =
+                minecraft.options.keyUse.isDown();
+
+        if (!ClientMatchState.isGoalkeeper()) {
+            goalkeeperUseWasDown = useDown;
+            return;
+        }
+
+        if (useDown && !goalkeeperUseWasDown) {
+            int ballId = -1;
+
+            if (minecraft.hitResult
+                    instanceof EntityHitResult entityHitResult
+                    && entityHitResult.getEntity()
+                    instanceof SoccerBallEntity ball) {
+
+                ballId = ball.getId();
+            }
+
+            /*
+             * Si ya sostiene el balón, el servidor conoce
+             * cuál es el oficial; aun así enviamos -1 cuando
+             * no se está apuntando a una entidad.
+             */
+            PacketDistributor.sendToServer(
+                    new GoalkeeperActionPayload(
+                            ballId
+                    )
+            );
+        }
+
+        goalkeeperUseWasDown = useDown;
     }
 
     /**
@@ -265,5 +313,6 @@ public final class ClientSoccerState {
         chargeTicks = 0;
         targetBallId = -1;
         waitForRelease = false;
+        goalkeeperUseWasDown = false;
     }
 }
