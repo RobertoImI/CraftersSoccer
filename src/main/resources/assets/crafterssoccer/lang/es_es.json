@@ -1,5 +1,9 @@
 {
   "entity.crafterssoccer.soccer_ball": "Balón de fútbol",
+
   "subtitles.crafterssoccer.whistle_start": "Suena el silbato de inicio",
-  "subtitles.crafterssoccer.whistle_end": "Suena el silbato final"
+  "subtitles.crafterssoccer.whistle_end": "Suena el silbato final",
+
+  "key.crafterssoccer.referee_whistle": "Silbato del árbitro",
+  "key.categories.crafterssoccer": "CraftersSoccer"
 }

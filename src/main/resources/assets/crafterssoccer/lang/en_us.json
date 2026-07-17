@@ -1,5 +1,9 @@
 {
   "entity.crafterssoccer.soccer_ball": "Soccer Ball",
+
   "subtitles.crafterssoccer.whistle_start": "Starting whistle blows",
-  "subtitles.crafterssoccer.whistle_end": "Final whistle blows"
+  "subtitles.crafterssoccer.whistle_end": "Final whistle blows",
+
+  "key.crafterssoccer.referee_whistle": "Referee Whistle",
+  "key.categories.crafterssoccer": "CraftersSoccer"
 }

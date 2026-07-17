@@ -33,6 +33,9 @@ public final class SoccerTeamDisplayManager {
     private static final String BLUE_GOALKEEPER_TEAM =
             "csoccer_blue_gk";
 
+    private static final String REFEREE_SCOREBOARD_TEAM =
+            "csoccer_referee";
+
     private SoccerTeamDisplayManager() {
     }
 
@@ -43,7 +46,8 @@ public final class SoccerTeamDisplayManager {
             String redName,
             String blueName,
             UUID redGoalkeeper,
-            UUID blueGoalkeeper
+            UUID blueGoalkeeper,
+            UUID referee
     ) {
         Scoreboard scoreboard = server.getScoreboard();
 
@@ -58,6 +62,9 @@ public final class SoccerTeamDisplayManager {
 
         PlayerTeam blueGoalkeeperTeam =
                 getOrCreateTeam(scoreboard, BLUE_GOALKEEPER_TEAM);
+
+        PlayerTeam refereeTeam =
+                getOrCreateTeam(scoreboard, REFEREE_SCOREBOARD_TEAM);
 
         configureTeam(
                 redTeam,
@@ -89,10 +96,19 @@ public final class SoccerTeamDisplayManager {
                         .withStyle(ChatFormatting.GOLD)
         );
 
+        configureTeam(
+                refereeTeam,
+                "Árbitro",
+                ChatFormatting.YELLOW,
+                Component.literal("[ÁRBITRO] ")
+                        .withStyle(ChatFormatting.YELLOW)
+        );
+
         clearTeamMembers(scoreboard, redTeam);
         clearTeamMembers(scoreboard, blueTeam);
         clearTeamMembers(scoreboard, redGoalkeeperTeam);
         clearTeamMembers(scoreboard, blueGoalkeeperTeam);
+        clearTeamMembers(scoreboard, refereeTeam);
 
         addPlayers(
                 server,
@@ -111,6 +127,18 @@ public final class SoccerTeamDisplayManager {
                 bluePlayers,
                 blueGoalkeeper
         );
+
+        if (referee != null) {
+            ServerPlayer refereePlayer =
+                    server.getPlayerList().getPlayer(referee);
+
+            if (refereePlayer != null) {
+                scoreboard.addPlayerToTeam(
+                        refereePlayer.getScoreboardName(),
+                        refereeTeam
+                );
+            }
+        }
     }
 
     private static void addPlayers(
@@ -186,6 +214,11 @@ public final class SoccerTeamDisplayManager {
                         BLUE_GOALKEEPER_TEAM
                 );
 
+        PlayerTeam refereeTeam =
+                scoreboard.getPlayerTeam(
+                        REFEREE_SCOREBOARD_TEAM
+                );
+
         if (redTeam != null) {
             scoreboard.removePlayerTeam(
                     redTeam
@@ -207,6 +240,12 @@ public final class SoccerTeamDisplayManager {
         if (blueGoalkeeperTeam != null) {
             scoreboard.removePlayerTeam(
                     blueGoalkeeperTeam
+            );
+        }
+
+        if (refereeTeam != null) {
+            scoreboard.removePlayerTeam(
+                    refereeTeam
             );
         }
     }
@@ -297,6 +336,7 @@ public final class SoccerTeamDisplayManager {
         return RED_SCOREBOARD_TEAM.equals(name)
                 || BLUE_SCOREBOARD_TEAM.equals(name)
                 || RED_GOALKEEPER_TEAM.equals(name)
-                || BLUE_GOALKEEPER_TEAM.equals(name);
+                || BLUE_GOALKEEPER_TEAM.equals(name)
+                || REFEREE_SCOREBOARD_TEAM.equals(name);
     }
 }

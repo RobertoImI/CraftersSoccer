@@ -12,6 +12,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
+import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 
 /**
  * Eventos exclusivos del cliente.
@@ -48,6 +49,15 @@ public final class ClientModEvents {
             event.registerLayerDefinition(
                     SoccerBallModel.MODEL_LAYER,
                     SoccerBallModel::createBodyLayer
+            );
+        }
+
+        @SubscribeEvent
+        public static void registerKeyMappings(
+                RegisterKeyMappingsEvent event
+        ) {
+            event.register(
+                    RefereeKeyMappings.WHISTLE
             );
         }
 
@@ -97,6 +107,8 @@ public final class ClientModEvents {
         ) {
             Minecraft minecraft =
                     Minecraft.getInstance();
+
+            RefereeKeyMappings.clientTick();
 
             ClientSoccerState.clientTick(
                     minecraft

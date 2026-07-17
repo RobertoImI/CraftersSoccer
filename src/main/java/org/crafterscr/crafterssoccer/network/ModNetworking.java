@@ -3,6 +3,7 @@ package org.crafterscr.crafterssoccer.network;
 import org.crafterscr.crafterssoccer.client.ClientMatchState;
 import org.crafterscr.crafterssoccer.entity.SoccerBallEntity;
 import org.crafterscr.crafterssoccer.match.GoalkeeperManager;
+import org.crafterscr.crafterssoccer.referee.RefereeManager;
 
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -16,7 +17,7 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
  */
 public final class ModNetworking {
 
-    private static final String NETWORK_VERSION = "4";
+    private static final String NETWORK_VERSION = "6";
 
     private ModNetworking() {
     }
@@ -39,6 +40,18 @@ public final class ModNetworking {
                 GoalkeeperActionPayload.TYPE,
                 GoalkeeperActionPayload.STREAM_CODEC,
                 ModNetworking::handleGoalkeeperAction
+        );
+
+        registrar.playToServer(
+                RefereeWhistlePayload.TYPE,
+                RefereeWhistlePayload.STREAM_CODEC,
+                ModNetworking::handleRefereeWhistle
+        );
+
+        registrar.playToServer(
+                RefereeBallActionPayload.TYPE,
+                RefereeBallActionPayload.STREAM_CODEC,
+                ModNetworking::handleRefereeBallAction
         );
 
         registrar.playToClient(
@@ -87,6 +100,42 @@ public final class ModNetworking {
                         player.getServer(),
                         player,
                         payload.ballEntityId()
+                )
+        );
+    }
+
+    private static void handleRefereeWhistle(
+            RefereeWhistlePayload payload,
+            IPayloadContext context
+    ) {
+        if (!(context.player()
+                instanceof ServerPlayer player)) {
+            return;
+        }
+
+        context.enqueueWork(
+                () -> RefereeManager.handleWhistle(
+                        player.getServer(),
+                        player
+                )
+        );
+    }
+
+    private static void handleRefereeBallAction(
+            RefereeBallActionPayload payload,
+            IPayloadContext context
+    ) {
+        if (!(context.player()
+                instanceof ServerPlayer player)) {
+            return;
+        }
+
+        context.enqueueWork(
+                () -> RefereeManager.handleBallAction(
+                        player.getServer(),
+                        player,
+                        payload.ballEntityId(),
+                        payload.holding()
                 )
         );
     }

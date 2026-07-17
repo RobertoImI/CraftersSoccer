@@ -161,6 +161,19 @@ public class SoccerBallEntity extends Entity {
     private UUID goalkeeperHolder;
     private long goalkeeperHoldUntilGameTime;
 
+    /*
+     * Posesión del árbitro.
+     * No tiene límite de tiempo y termina únicamente cuando
+     * el árbitro suelta el clic derecho o deja de ser válido.
+     */
+    private UUID refereeHolder;
+
+    /**
+     * Breve estabilización después de que el árbitro coloca el balón.
+     * Evita que la gravedad produzca un rebote inmediato.
+     */
+    private long refereeSettleUntilGameTime;
+
     public SoccerBallEntity(
             EntityType<? extends SoccerBallEntity> entityType,
             Level level
@@ -188,7 +201,17 @@ public class SoccerBallEntity extends Entity {
                 this.rollDegrees;
 
         if (!this.level().isClientSide()
+                && tickRefereeHold()) {
+            return;
+        }
+
+        if (!this.level().isClientSide()
                 && tickGoalkeeperHold()) {
+            return;
+        }
+
+        if (!this.level().isClientSide()
+                && tickRefereePlacementSettle()) {
             return;
         }
 
@@ -216,6 +239,238 @@ public class SoccerBallEntity extends Entity {
     }
 
     /**
+     * Vincula el balón al árbitro sin límite de tiempo.
+     */
+    public void holdByReferee(
+            ServerPlayer player
+    ) {
+        this.refereeHolder =
+                player.getUUID();
+
+        this.setDeltaMovement(
+                Vec3.ZERO
+        );
+
+        this.hasImpulse = true;
+    }
+
+    public boolean isHeldByReferee() {
+        return refereeHolder != null;
+    }
+
+    public boolean isHeldByReferee(
+            UUID playerId
+    ) {
+        return refereeHolder != null
+                && refereeHolder.equals(playerId);
+    }
+
+    public UUID getRefereeHolder() {
+        return refereeHolder;
+    }
+
+    /**
+     * El árbitro deja caer el balón sin lanzarlo.
+     */
+    public void releaseFromReferee(
+            ServerPlayer referee
+    ) {
+        this.refereeHolder = null;
+
+        /*
+         * Conservamos X/Z donde el árbitro estaba sosteniendo
+         * el balón, pero buscamos el suelo inmediatamente debajo.
+         * Así puede apuntar al lugar deseado y colocarlo sin
+         * dejarlo caer desde la altura del pecho.
+         */
+        double targetY =
+                findSafePlacementY(
+                        this.getX(),
+                        this.getY(),
+                        this.getZ()
+                );
+
+        this.setPos(
+                this.getX(),
+                targetY,
+                this.getZ()
+        );
+
+        this.setDeltaMovement(
+                Vec3.ZERO
+        );
+
+        this.refereeSettleUntilGameTime =
+                this.level().getGameTime() + 8L;
+
+        this.hasImpulse = true;
+    }
+
+    /**
+     * Liberación de seguridad cuando el árbitro desaparece,
+     * muere o pierde el rol.
+     */
+    public void releaseFromReferee() {
+        this.refereeHolder = null;
+        this.refereeSettleUntilGameTime =
+                this.level().getGameTime() + 4L;
+
+        this.setDeltaMovement(
+                Vec3.ZERO
+        );
+
+        this.hasImpulse = true;
+    }
+
+    /**
+     * Busca el primer bloque sólido debajo del balón.
+     */
+    private double findSafePlacementY(
+            double x,
+            double currentY,
+            double z
+    ) {
+        int startY =
+                net.minecraft.util.Mth.floor(
+                        currentY
+                );
+
+        int minimumY =
+                Math.max(
+                        this.level().getMinBuildHeight(),
+                        startY - 6
+                );
+
+        net.minecraft.core.BlockPos.MutableBlockPos cursor =
+                new net.minecraft.core.BlockPos.MutableBlockPos(
+                        net.minecraft.util.Mth.floor(x),
+                        startY,
+                        net.minecraft.util.Mth.floor(z)
+                );
+
+        for (int y = startY; y >= minimumY; y--) {
+            cursor.setY(y);
+
+            net.minecraft.world.level.block.state.BlockState state =
+                    this.level().getBlockState(cursor);
+
+            if (state.isAir()) {
+                continue;
+            }
+
+            net.minecraft.world.phys.shapes.VoxelShape shape =
+                    state.getCollisionShape(
+                            this.level(),
+                            cursor
+                    );
+
+            if (shape.isEmpty()) {
+                continue;
+            }
+
+            double surfaceY =
+                    y + shape.max(
+                            net.minecraft.core.Direction.Axis.Y
+                    );
+
+            return surfaceY + 0.02D;
+        }
+
+        /*
+         * Si no hay suelo cercano, se suelta donde está.
+         */
+        return currentY;
+    }
+
+    /**
+     * Mantiene el balón quieto unos ticks después de colocarlo.
+     */
+    private boolean tickRefereePlacementSettle() {
+        if (this.level().getGameTime()
+                >= refereeSettleUntilGameTime) {
+            return false;
+        }
+
+        this.setDeltaMovement(
+                Vec3.ZERO
+        );
+
+        this.hasImpulse = true;
+        return true;
+    }
+
+    /**
+     * Mantiene el balón delante del árbitro.
+     *
+     * No limita velocidad ni tiempo de posesión.
+     */
+    private boolean tickRefereeHold() {
+        if (refereeHolder == null) {
+            return false;
+        }
+
+        if (!(this.level()
+                instanceof net.minecraft.server.level.ServerLevel serverLevel)) {
+            return false;
+        }
+
+        Player foundPlayer =
+                serverLevel.getPlayerByUUID(
+                        refereeHolder
+                );
+
+        if (!(foundPlayer instanceof ServerPlayer holder)
+                || !holder.isAlive()
+                || !org.crafterscr.crafterssoccer.match
+                .SoccerMatchManager.isReferee(
+                        serverLevel.getServer(),
+                        refereeHolder
+                )) {
+
+            releaseFromReferee();
+            return false;
+        }
+
+        Vec3 look =
+                holder.getLookAngle();
+
+        if (look.lengthSqr() < 0.0001D) {
+            look = new Vec3(
+                    0.0D,
+                    0.0D,
+                    1.0D
+            );
+        } else {
+            look = look.normalize();
+        }
+
+        Vec3 heldPosition =
+                holder.getEyePosition()
+                        .add(
+                                look.scale(0.78D)
+                        )
+                        .add(
+                                0.0D,
+                                -0.46D,
+                                0.0D
+                        );
+
+        this.setPos(
+                heldPosition.x,
+                heldPosition.y,
+                heldPosition.z
+        );
+
+        this.setDeltaMovement(
+                Vec3.ZERO
+        );
+
+        this.hasImpulse = true;
+
+        return true;
+    }
+
+    /**
      * Vincula el balón al portero durante un máximo
      * de ticks determinado.
      */
@@ -223,6 +478,10 @@ public class SoccerBallEntity extends Entity {
             ServerPlayer player,
             int maximumTicks
     ) {
+        if (isHeldByReferee()) {
+            return;
+        }
+
         this.goalkeeperHolder = player.getUUID();
         this.goalkeeperHoldUntilGameTime =
                 this.level().getGameTime()
@@ -1387,6 +1646,10 @@ public class SoccerBallEntity extends Entity {
             return;
         }
 
+        if (isHeldByReferee()) {
+            return;
+        }
+
         if (isHeldByGoalkeeper()
                 && !isHeldBy(player.getUUID())) {
             return;
@@ -1808,7 +2071,8 @@ public class SoccerBallEntity extends Entity {
 
     @Override
     public boolean isPushable() {
-        return true;
+        return !isHeldByGoalkeeper()
+                && !isHeldByReferee();
     }
 
     @Override

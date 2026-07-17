@@ -72,6 +72,7 @@ public final class SoccerCommands {
                         .then(createBallCommands())
                         .then(createFieldCommands())
                         .then(createTeamCommands())
+                        .then(createRefereeCommands())
                         .then(createMatchCommands())
         );
     }
@@ -761,6 +762,53 @@ public final class SoccerCommands {
 
     private static com.mojang.brigadier.builder
             .LiteralArgumentBuilder<CommandSourceStack>
+    createRefereeCommands() {
+
+        return Commands.literal("referee")
+
+                .then(
+                        Commands.literal("set")
+                                .then(
+                                        Commands.argument(
+                                                        "player",
+                                                        EntityArgument.player()
+                                                )
+                                                .executes(
+                                                        context ->
+                                                                setReferee(
+                                                                        context.getSource(),
+                                                                        EntityArgument.getPlayer(
+                                                                                context,
+                                                                                "player"
+                                                                        )
+                                                                )
+                                                )
+                                )
+                )
+
+                .then(
+                        Commands.literal("clear")
+                                .executes(
+                                        context ->
+                                                clearReferee(
+                                                        context.getSource()
+                                                )
+                                )
+                )
+
+                .then(
+                        Commands.literal("status")
+                                .executes(
+                                        context ->
+                                                showRefereeStatus(
+                                                        context.getSource()
+                                                )
+                                )
+                );
+    }
+
+    private static com.mojang.brigadier.builder
+            .LiteralArgumentBuilder<CommandSourceStack>
     createMatchCommands() {
 
         return Commands.literal("match")
@@ -1303,6 +1351,18 @@ public final class SoccerCommands {
             SoccerTeamSide side,
             ServerPlayer player
     ) {
+        if (SoccerMatchManager.isReferee(
+                source.getServer(),
+                player.getUUID()
+        )) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cEl árbitro no puede ser portero."
+                    )
+            );
+            return 0;
+        }
+
         SoccerTeamSide playerTeam =
                 SoccerMatchManager.getPlayerTeam(
                         source.getServer(),
@@ -1648,6 +1708,13 @@ public final class SoccerCommands {
         int added = 0;
 
         for (ServerPlayer player : players) {
+            if (SoccerMatchManager.isReferee(
+                    source.getServer(),
+                    player.getUUID()
+            )) {
+                continue;
+            }
+
             SoccerTeamSide previousSide =
                     SoccerMatchManager.getPlayerTeam(
                             source.getServer(),
@@ -1798,6 +1865,138 @@ public final class SoccerCommands {
         );
 
         return Math.max(1, removed);
+    }
+
+    private static int setReferee(
+            CommandSourceStack source,
+            ServerPlayer player
+    ) {
+        MinecraftServer server = source.getServer();
+
+        if (SoccerMatchManager.isReferee(
+                server,
+                player.getUUID()
+        )) {
+            source.sendFailure(
+                    Component.literal(
+                            "§e"
+                                    + player.getGameProfile().getName()
+                                    + " ya es el árbitro."
+                    )
+            );
+            return 0;
+        }
+
+        if (!SoccerMatchManager.setReferee(
+                server,
+                player.getUUID()
+        )) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cNo se pudo asignar el árbitro."
+                    )
+            );
+            return 0;
+        }
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§e§l"
+                                + player.getGameProfile().getName()
+                                + " §aahora tiene el rol de árbitro."
+                ),
+                true
+        );
+
+        player.sendSystemMessage(
+                Component.literal(
+                        "§eHas sido asignado como árbitro de CraftersSoccer."
+                )
+        );
+
+        return 1;
+    }
+
+    private static int clearReferee(
+            CommandSourceStack source
+    ) {
+        MinecraftServer server = source.getServer();
+        UUID previousReferee =
+                SoccerMatchManager.getReferee(server);
+
+        if (!SoccerMatchManager.clearReferee(server)) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cNo hay un árbitro asignado."
+                    )
+            );
+            return 0;
+        }
+
+        if (previousReferee != null) {
+            ServerPlayer player =
+                    server.getPlayerList().getPlayer(previousReferee);
+
+            if (player != null) {
+                player.sendSystemMessage(
+                        Component.literal(
+                                "§7Ya no tienes el rol de árbitro."
+                        )
+                );
+            }
+        }
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§eSe eliminó el árbitro asignado."
+                ),
+                true
+        );
+
+        return 1;
+    }
+
+    private static int showRefereeStatus(
+            CommandSourceStack source
+    ) {
+        MinecraftServer server = source.getServer();
+        UUID refereeId =
+                SoccerMatchManager.getReferee(server);
+
+        if (refereeId == null) {
+            source.sendSuccess(
+                    () -> Component.literal(
+                            "§7No hay un árbitro asignado."
+                    ),
+                    false
+            );
+            return 0;
+        }
+
+        ServerPlayer player =
+                server.getPlayerList().getPlayer(refereeId);
+
+        String name =
+                player == null
+                        ? refereeId.toString()
+                        : player.getGameProfile().getName();
+
+        String connection =
+                player == null
+                        ? "§7(desconectado)"
+                        : "§a(conectado)";
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§eÁrbitro actual: §f"
+                                + name
+                                + " "
+                                + connection
+                ),
+                false
+        );
+
+        return 1;
     }
 
     private static int listTeams(

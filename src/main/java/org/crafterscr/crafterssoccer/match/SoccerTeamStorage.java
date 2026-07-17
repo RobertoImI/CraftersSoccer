@@ -59,7 +59,8 @@ public final class SoccerTeamStorage {
                     parseUuidSet(stored.redPlayers),
                     parseUuidSet(stored.bluePlayers),
                     parseUuid(stored.redGoalkeeper),
-                    parseUuid(stored.blueGoalkeeper)
+                    parseUuid(stored.blueGoalkeeper),
+                    parseUuid(stored.referee)
             );
 
         } catch (Exception exception) {
@@ -79,7 +80,8 @@ public final class SoccerTeamStorage {
             Set<UUID> redPlayers,
             Set<UUID> bluePlayers,
             UUID redGoalkeeper,
-            UUID blueGoalkeeper
+            UUID blueGoalkeeper,
+            UUID referee
     ) {
         Path file = getFile(server);
         Path directory = file.getParent();
@@ -95,6 +97,9 @@ public final class SoccerTeamStorage {
         stored.blueGoalkeeper = blueGoalkeeper == null
                 ? null
                 : blueGoalkeeper.toString();
+        stored.referee = referee == null
+                ? null
+                : referee.toString();
 
         try {
             Files.createDirectories(directory);
@@ -212,7 +217,8 @@ public final class SoccerTeamStorage {
             LinkedHashSet<UUID> redPlayers,
             LinkedHashSet<UUID> bluePlayers,
             UUID redGoalkeeper,
-            UUID blueGoalkeeper
+            UUID blueGoalkeeper,
+            UUID referee
     ) {
         public static TeamData defaults() {
             return new TeamData(
@@ -220,6 +226,7 @@ public final class SoccerTeamStorage {
                     "Equipo Azul",
                     new LinkedHashSet<>(),
                     new LinkedHashSet<>(),
+                    null,
                     null,
                     null
             );
@@ -234,5 +241,6 @@ public final class SoccerTeamStorage {
         private List<String> bluePlayers = new ArrayList<>();
         private String redGoalkeeper;
         private String blueGoalkeeper;
+        private String referee;
     }
 }

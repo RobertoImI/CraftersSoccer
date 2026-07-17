@@ -45,6 +45,12 @@ public final class SoccerMatchManager {
     private static UUID redGoalkeeper;
     private static UUID blueGoalkeeper;
 
+    /**
+     * Árbitro persistente del servidor.
+     * Puede usar sus habilidades aunque no exista un partido activo.
+     */
+    private static UUID referee;
+
     private static int synchronizationTicker;
 
     private SoccerMatchManager() {
@@ -76,6 +82,7 @@ public final class SoccerMatchManager {
 
         redGoalkeeper = data.redGoalkeeper();
         blueGoalkeeper = data.blueGoalkeeper();
+        referee = data.referee();
 
         normalizeLoadedData();
 
@@ -86,7 +93,8 @@ public final class SoccerMatchManager {
                 redTeamName,
                 blueTeamName,
                 redGoalkeeper,
-                blueGoalkeeper
+                blueGoalkeeper,
+                referee
         );
     }
 
@@ -98,6 +106,15 @@ public final class SoccerMatchManager {
         ensureLoaded(server);
 
         UUID playerId = player.getUUID();
+
+        /*
+         * El árbitro no puede pertenecer a un equipo.
+         * Primero debe quitarse el rol de árbitro.
+         */
+        if (playerId.equals(referee)) {
+            return false;
+        }
+
         SoccerTeamSide previousSide = getPlayerTeam(server, playerId);
 
         if (previousSide == side) {
@@ -294,7 +311,8 @@ public final class SoccerMatchManager {
         ensureLoaded(server);
 
         if (playerId != null
-                && !getMutableTeam(side).contains(playerId)) {
+                && (!getMutableTeam(side).contains(playerId)
+                || playerId.equals(referee))) {
             return false;
         }
 
@@ -317,6 +335,77 @@ public final class SoccerMatchManager {
         return playerId != null
                 && (playerId.equals(redGoalkeeper)
                 || playerId.equals(blueGoalkeeper));
+    }
+
+    public static UUID getReferee(
+            MinecraftServer server
+    ) {
+        ensureLoaded(server);
+        return referee;
+    }
+
+    public static boolean isReferee(
+            MinecraftServer server,
+            UUID playerId
+    ) {
+        ensureLoaded(server);
+
+        return playerId != null
+                && playerId.equals(referee);
+    }
+
+    /**
+     * Asigna un árbitro único.
+     *
+     * Al recibir el rol:
+     * - sale de cualquier equipo;
+     * - deja de ser portero;
+     * - conserva el rol después de reiniciar.
+     */
+    public static boolean setReferee(
+            MinecraftServer server,
+            UUID playerId
+    ) {
+        ensureLoaded(server);
+
+        if (playerId == null) {
+            return clearReferee(server);
+        }
+
+        if (playerId.equals(referee)) {
+            return false;
+        }
+
+        RED_PLAYERS.remove(playerId);
+        BLUE_PLAYERS.remove(playerId);
+
+        if (playerId.equals(redGoalkeeper)) {
+            redGoalkeeper = null;
+        }
+
+        if (playerId.equals(blueGoalkeeper)) {
+            blueGoalkeeper = null;
+        }
+
+        referee = playerId;
+
+        saveAndSynchronize(server);
+        return true;
+    }
+
+    public static boolean clearReferee(
+            MinecraftServer server
+    ) {
+        ensureLoaded(server);
+
+        if (referee == null) {
+            return false;
+        }
+
+        referee = null;
+
+        saveAndSynchronize(server);
+        return true;
     }
 
     public static SoccerMatch getActiveMatch(
@@ -349,7 +438,8 @@ public final class SoccerMatchManager {
                 redTeamName,
                 blueTeamName,
                 redGoalkeeper,
-                blueGoalkeeper
+                blueGoalkeeper,
+                referee
         );
 
         activeMatch.start(
@@ -471,7 +561,8 @@ public final class SoccerMatchManager {
                 redTeamName,
                 blueTeamName,
                 redGoalkeeper,
-                blueGoalkeeper
+                blueGoalkeeper,
+                referee
         );
 
         if (activeMatch == null) {
@@ -580,6 +671,23 @@ public final class SoccerMatchManager {
                 && !BLUE_PLAYERS.contains(blueGoalkeeper)) {
             blueGoalkeeper = null;
         }
+
+        /*
+         * El árbitro nunca puede formar parte de un equipo
+         * ni conservar un rol de portero.
+         */
+        if (referee != null) {
+            RED_PLAYERS.remove(referee);
+            BLUE_PLAYERS.remove(referee);
+
+            if (referee.equals(redGoalkeeper)) {
+                redGoalkeeper = null;
+            }
+
+            if (referee.equals(blueGoalkeeper)) {
+                blueGoalkeeper = null;
+            }
+        }
     }
 
     private static void saveAndSynchronize(
@@ -594,7 +702,8 @@ public final class SoccerMatchManager {
                 redTeamName,
                 blueTeamName,
                 redGoalkeeper,
-                blueGoalkeeper
+                blueGoalkeeper,
+                referee
         );
 
         synchronize(server);
@@ -610,7 +719,8 @@ public final class SoccerMatchManager {
                 RED_PLAYERS,
                 BLUE_PLAYERS,
                 redGoalkeeper,
-                blueGoalkeeper
+                blueGoalkeeper,
+                referee
         );
     }
 

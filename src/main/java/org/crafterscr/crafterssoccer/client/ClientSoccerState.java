@@ -3,6 +3,7 @@ package org.crafterscr.crafterssoccer.client;
 import org.crafterscr.crafterssoccer.entity.SoccerBallEntity;
 import org.crafterscr.crafterssoccer.network.KickBallPayload;
 import org.crafterscr.crafterssoccer.network.GoalkeeperActionPayload;
+import org.crafterscr.crafterssoccer.network.RefereeBallActionPayload;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.EntityHitResult;
@@ -50,6 +51,12 @@ public final class ClientSoccerState {
 
     private static boolean goalkeeperUseWasDown;
 
+    /**
+     * Estado local del clic derecho usado por el árbitro.
+     */
+    private static boolean refereeUseWasDown;
+    private static int refereeTargetBallId = -1;
+
     private ClientSoccerState() {
     }
 
@@ -68,6 +75,7 @@ public final class ClientSoccerState {
             return;
         }
 
+        handleRefereeBallUse(minecraft);
         handleGoalkeeperUse(minecraft);
 
         boolean attackButtonDown =
@@ -109,6 +117,54 @@ public final class ClientSoccerState {
          * El jugador soltó el botón.
          */
         releaseKick();
+    }
+
+    /**
+     * Mantener clic derecho sobre un balón intenta agarrarlo.
+     * Soltar el botón intenta dejarlo caer.
+     *
+     * El cliente envía la solicitud para cualquier jugador;
+     * el servidor solamente la acepta si realmente es árbitro.
+     */
+    private static void handleRefereeBallUse(
+            Minecraft minecraft
+    ) {
+        boolean useDown =
+                minecraft.options.keyUse.isDown();
+
+        if (useDown && !refereeUseWasDown) {
+            if (minecraft.hitResult
+                    instanceof EntityHitResult entityHitResult
+                    && entityHitResult.getEntity()
+                    instanceof SoccerBallEntity ball) {
+
+                refereeTargetBallId =
+                        ball.getId();
+
+                PacketDistributor.sendToServer(
+                        new RefereeBallActionPayload(
+                                refereeTargetBallId,
+                                true
+                        )
+                );
+            }
+        }
+
+        if (!useDown
+                && refereeUseWasDown
+                && refereeTargetBallId >= 0) {
+
+            PacketDistributor.sendToServer(
+                    new RefereeBallActionPayload(
+                            refereeTargetBallId,
+                            false
+                    )
+            );
+
+            refereeTargetBallId = -1;
+        }
+
+        refereeUseWasDown = useDown;
     }
 
     /**
@@ -314,5 +370,7 @@ public final class ClientSoccerState {
         targetBallId = -1;
         waitForRelease = false;
         goalkeeperUseWasDown = false;
+        refereeUseWasDown = false;
+        refereeTargetBallId = -1;
     }
 }
