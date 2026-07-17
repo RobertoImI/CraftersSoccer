@@ -278,30 +278,108 @@ public class SoccerBallEntity extends Entity {
         this.refereeHolder = null;
 
         /*
-         * Conservamos X/Z donde el árbitro estaba sosteniendo
-         * el balón, pero buscamos el suelo inmediatamente debajo.
-         * Así puede apuntar al lugar deseado y colocarlo sin
-         * dejarlo caer desde la altura del pecho.
+         * El servidor lanza un raycast desde los ojos del árbitro.
+         * El balón se coloca exactamente sobre la cara superior
+         * del bloque sólido que está mirando.
          */
-        double targetY =
-                findSafePlacementY(
-                        this.getX(),
-                        this.getY(),
-                        this.getZ()
+        Vec3 eyePosition =
+                referee.getEyePosition();
+
+        Vec3 lookDirection =
+                referee.getLookAngle();
+
+        if (lookDirection.lengthSqr() < 0.0001D) {
+            lookDirection =
+                    new Vec3(
+                            0.0D,
+                            0.0D,
+                            1.0D
+                    );
+        } else {
+            lookDirection =
+                    lookDirection.normalize();
+        }
+
+        Vec3 rayEnd =
+                eyePosition.add(
+                        lookDirection.scale(
+                                8.0D
+                        )
                 );
 
+        net.minecraft.world.phys.BlockHitResult hitResult =
+                this.level().clip(
+                        new net.minecraft.world.level.ClipContext(
+                                eyePosition,
+                                rayEnd,
+                                net.minecraft.world.level.ClipContext.Block.COLLIDER,
+                                net.minecraft.world.level.ClipContext.Fluid.NONE,
+                                referee
+                        )
+                );
+
+        double targetX =
+                this.getX();
+
+        double targetY =
+                this.getY();
+
+        double targetZ =
+                this.getZ();
+
+        if (hitResult.getType()
+                == net.minecraft.world.phys.HitResult.Type.BLOCK) {
+
+            net.minecraft.core.BlockPos blockPos =
+                    hitResult.getBlockPos();
+
+            net.minecraft.world.level.block.state.BlockState state =
+                    this.level().getBlockState(
+                            blockPos
+                    );
+
+            net.minecraft.world.phys.shapes.VoxelShape shape =
+                    state.getCollisionShape(
+                            this.level(),
+                            blockPos
+                    );
+
+            if (!shape.isEmpty()) {
+                /*
+                 * Centro horizontal del bloque observado.
+                 * La altura usa la superficie real del collision shape,
+                 * por lo que funciona también con losas y bloques bajos.
+                 */
+                targetX =
+                        blockPos.getX() + 0.5D;
+
+                targetY =
+                        blockPos.getY()
+                                + shape.max(
+                                net.minecraft.core.Direction.Axis.Y
+                        )
+                                + 0.02D;
+
+                targetZ =
+                        blockPos.getZ() + 0.5D;
+            }
+        }
+
         this.setPos(
-                this.getX(),
+                targetX,
                 targetY,
-                this.getZ()
+                targetZ
         );
 
         this.setDeltaMovement(
                 Vec3.ZERO
         );
 
+        /*
+         * 20 ticks = 1 segundo completamente inmóvil.
+         */
         this.refereeSettleUntilGameTime =
-                this.level().getGameTime() + 8L;
+                this.level().getGameTime() + 20L;
 
         this.hasImpulse = true;
     }
@@ -323,67 +401,8 @@ public class SoccerBallEntity extends Entity {
     }
 
     /**
-     * Busca el primer bloque sólido debajo del balón.
-     */
-    private double findSafePlacementY(
-            double x,
-            double currentY,
-            double z
-    ) {
-        int startY =
-                net.minecraft.util.Mth.floor(
-                        currentY
-                );
-
-        int minimumY =
-                Math.max(
-                        this.level().getMinBuildHeight(),
-                        startY - 6
-                );
-
-        net.minecraft.core.BlockPos.MutableBlockPos cursor =
-                new net.minecraft.core.BlockPos.MutableBlockPos(
-                        net.minecraft.util.Mth.floor(x),
-                        startY,
-                        net.minecraft.util.Mth.floor(z)
-                );
-
-        for (int y = startY; y >= minimumY; y--) {
-            cursor.setY(y);
-
-            net.minecraft.world.level.block.state.BlockState state =
-                    this.level().getBlockState(cursor);
-
-            if (state.isAir()) {
-                continue;
-            }
-
-            net.minecraft.world.phys.shapes.VoxelShape shape =
-                    state.getCollisionShape(
-                            this.level(),
-                            cursor
-                    );
-
-            if (shape.isEmpty()) {
-                continue;
-            }
-
-            double surfaceY =
-                    y + shape.max(
-                            net.minecraft.core.Direction.Axis.Y
-                    );
-
-            return surfaceY + 0.02D;
-        }
-
-        /*
-         * Si no hay suelo cercano, se suelta donde está.
-         */
-        return currentY;
-    }
-
-    /**
-     * Mantiene el balón quieto unos ticks después de colocarlo.
+     * Mantiene el balón completamente quieto durante un segundo
+     * después de colocarlo.
      */
     private boolean tickRefereePlacementSettle() {
         if (this.level().getGameTime()
