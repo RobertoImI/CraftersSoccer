@@ -32,6 +32,7 @@ import net.minecraft.world.phys.Vec3;
 
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 
+
 /**
  * Comandos administrativos.
  */
@@ -438,28 +439,47 @@ public final class SoccerCommands {
 
         return Commands.literal("team")
 
+                /*
+                 * Equipo rojo.
+                 */
                 .then(
                         Commands.literal("red")
+
+                                /*
+                                 * /soccer team red add <jugadores>
+                                 *
+                                 * Admite:
+                                 * nombre
+                                 * @a
+                                 * @p
+                                 * @r
+                                 * @s
+                                 * @a[filtros]
+                                 */
                                 .then(
                                         Commands.literal("add")
                                                 .then(
                                                         Commands.argument(
-                                                                        "player",
-                                                                        EntityArgument.player()
+                                                                        "players",
+                                                                        EntityArgument.players()
                                                                 )
                                                                 .executes(
                                                                         context ->
-                                                                                addPlayerToTeam(
+                                                                                addPlayersToTeam(
                                                                                         context.getSource(),
-                                                                                        EntityArgument.getPlayer(
+                                                                                        EntityArgument.getPlayers(
                                                                                                 context,
-                                                                                                "player"
+                                                                                                "players"
                                                                                         ),
                                                                                         SoccerTeamSide.RED
                                                                                 )
                                                                 )
                                                 )
                                 )
+
+                                /*
+                                 * /soccer team red name <nombre>
+                                 */
                                 .then(
                                         Commands.literal("name")
                                                 .then(
@@ -480,30 +500,52 @@ public final class SoccerCommands {
                                                                 )
                                                 )
                                 )
+
+                                .then(
+                                        Commands.literal("clear")
+                                                .executes(
+                                                        context ->
+                                                                clearTeam(
+                                                                        context.getSource(),
+                                                                        SoccerTeamSide.RED
+                                                                )
+                                                )
+                                )
                 )
 
+                /*
+                 * Equipo azul.
+                 */
                 .then(
                         Commands.literal("blue")
+
+                                /*
+                                 * /soccer team blue add <jugadores>
+                                 */
                                 .then(
                                         Commands.literal("add")
                                                 .then(
                                                         Commands.argument(
-                                                                        "player",
-                                                                        EntityArgument.player()
+                                                                        "players",
+                                                                        EntityArgument.players()
                                                                 )
                                                                 .executes(
                                                                         context ->
-                                                                                addPlayerToTeam(
+                                                                                addPlayersToTeam(
                                                                                         context.getSource(),
-                                                                                        EntityArgument.getPlayer(
+                                                                                        EntityArgument.getPlayers(
                                                                                                 context,
-                                                                                                "player"
+                                                                                                "players"
                                                                                         ),
                                                                                         SoccerTeamSide.BLUE
                                                                                 )
                                                                 )
                                                 )
                                 )
+
+                                /*
+                                 * /soccer team blue name <nombre>
+                                 */
                                 .then(
                                         Commands.literal("name")
                                                 .then(
@@ -524,28 +566,57 @@ public final class SoccerCommands {
                                                                 )
                                                 )
                                 )
+
+                                .then(
+                                        Commands.literal("clear")
+                                                .executes(
+                                                        context ->
+                                                                clearTeam(
+                                                                        context.getSource(),
+                                                                        SoccerTeamSide.BLUE
+                                                                )
+                                                )
+                                )
                 )
 
+                .then(
+                        Commands.literal("clearall")
+                                .executes(
+                                        context ->
+                                                clearAllTeams(
+                                                        context.getSource()
+                                                )
+                                )
+                )
+
+                /*
+                 * /soccer team remove <jugadores>
+                 *
+                 * También admite @a, @p, @r y filtros.
+                 */
                 .then(
                         Commands.literal("remove")
                                 .then(
                                         Commands.argument(
-                                                        "player",
-                                                        EntityArgument.player()
+                                                        "players",
+                                                        EntityArgument.players()
                                                 )
                                                 .executes(
                                                         context ->
-                                                                removePlayerFromTeam(
+                                                                removePlayersFromTeams(
                                                                         context.getSource(),
-                                                                        EntityArgument.getPlayer(
+                                                                        EntityArgument.getPlayers(
                                                                                 context,
-                                                                                "player"
+                                                                                "players"
                                                                         )
                                                                 )
                                                 )
                                 )
                 )
 
+                /*
+                 * /soccer team list
+                 */
                 .then(
                         Commands.literal("list")
                                 .executes(
@@ -1227,41 +1298,129 @@ public final class SoccerCommands {
         return 1;
     }
 
-    private static int addPlayerToTeam(
+    /**
+     * Añade uno o varios jugadores al equipo indicado.
+     *
+     * Funciona con:
+     * - Un nombre individual.
+     * - @a
+     * - @p
+     * - @r
+     * - @s
+     * - Selectores con filtros.
+     */
+    private static int addPlayersToTeam(
             CommandSourceStack source,
-            ServerPlayer player,
+            Collection<ServerPlayer> players,
             SoccerTeamSide side
     ) {
-        SoccerMatchManager.addPlayer(
-                source.getServer(),
-                player,
-                side
-        );
+        if (players.isEmpty()) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cNo se encontraron jugadores."
+                    )
+            );
+
+            return 0;
+        }
+
+        int added = 0;
+
+        for (ServerPlayer player : players) {
+            SoccerTeamSide previousSide =
+                    SoccerMatchManager.getPlayerTeam(
+                            source.getServer(),
+                            player.getUUID()
+                    );
+
+            /*
+             * Si ya estaba en este mismo equipo,
+             * no contamos una modificación nueva.
+             */
+            if (previousSide == side) {
+                continue;
+            }
+
+            SoccerMatchManager.addPlayer(
+                    source.getServer(),
+                    player,
+                    side
+            );
+
+            added++;
+        }
+
+        int finalAdded = added;
+
+        if (added == 0) {
+            source.sendSuccess(
+                    () -> Component.literal(
+                            "§eTodos los jugadores seleccionados ya pertenecían al equipo §f"
+                                    + SoccerMatchManager.getTeamName(
+                                    source.getServer(),
+                                    side
+                            )
+                                    + "§e."
+                    ),
+                    false
+            );
+
+            return 0;
+        }
 
         source.sendSuccess(
                 () -> Component.literal(
-                        "§a"
-                                + player.getGameProfile().getName()
-                                + " ahora pertenece al equipo §f"
-                                + side.getDisplayName()
+                        "§aJugadores añadidos al equipo §f"
+                                + SoccerMatchManager.getTeamName(
+                                source.getServer(),
+                                side
+                        )
+                                + "§a: §f"
+                                + finalAdded
                 ),
                 true
         );
 
-        return 1;
+        return added;
     }
 
-    private static int removePlayerFromTeam(
+    /**
+     * Elimina uno o varios jugadores de sus equipos.
+     */
+    private static int removePlayersFromTeams(
             CommandSourceStack source,
-            ServerPlayer player
+            Collection<ServerPlayer> players
     ) {
-        if (!SoccerMatchManager.removePlayer(
-                source.getServer(),
-                player.getUUID()
-        )) {
+        if (players.isEmpty()) {
             source.sendFailure(
                     Component.literal(
-                            "§cEl jugador no pertenece a ningún equipo."
+                            "§cNo se encontraron jugadores."
+                    )
+            );
+
+            return 0;
+        }
+
+        int removed = 0;
+
+        for (ServerPlayer player : players) {
+            boolean playerRemoved =
+                    SoccerMatchManager.removePlayer(
+                            source.getServer(),
+                            player.getUUID()
+                    );
+
+            if (playerRemoved) {
+                removed++;
+            }
+        }
+
+        int finalRemoved = removed;
+
+        if (removed == 0) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cNinguno de los jugadores seleccionados pertenecía a un equipo."
                     )
             );
 
@@ -1270,13 +1429,54 @@ public final class SoccerCommands {
 
         source.sendSuccess(
                 () -> Component.literal(
-                        "§eJugador eliminado de su equipo: §f"
-                                + player.getGameProfile().getName()
+                        "§eJugadores eliminados de sus equipos: §f"
+                                + finalRemoved
                 ),
                 true
         );
 
-        return 1;
+        return removed;
+    }
+
+    private static int clearTeam(
+            CommandSourceStack source,
+            SoccerTeamSide side
+    ) {
+        int removed = SoccerMatchManager.clearTeam(
+                source.getServer(),
+                side
+        );
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§eEquipo "
+                                + side.getDisplayName()
+                                + " vaciado. Jugadores eliminados: §f"
+                                + removed
+                ),
+                true
+        );
+
+        return Math.max(1, removed);
+    }
+
+    private static int clearAllTeams(
+            CommandSourceStack source
+    ) {
+        int removed = SoccerMatchManager.clearAllTeams(
+                source.getServer()
+        );
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§eSe limpiaron ambos equipos, los porteros y los nombres personalizados. "
+                                + "Jugadores eliminados: §f"
+                                + removed
+                ),
+                true
+        );
+
+        return Math.max(1, removed);
     }
 
     private static int listTeams(

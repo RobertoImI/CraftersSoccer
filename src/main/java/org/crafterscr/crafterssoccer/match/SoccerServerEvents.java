@@ -2,13 +2,15 @@ package org.crafterscr.crafterssoccer.match;
 
 import org.crafterscr.crafterssoccer.CraftersSoccer;
 
+import net.minecraft.server.level.ServerPlayer;
+
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 /**
- * Eventos del servidor para actualizar los partidos.
+ * Eventos del servidor para partidos y restauración de equipos.
  */
 @EventBusSubscriber(
         modid = CraftersSoccer.MOD_ID,
@@ -23,20 +25,18 @@ public final class SoccerServerEvents {
     public static void onServerTick(
             ServerTickEvent.Post event
     ) {
-        SoccerMatchManager.tick(
-                event.getServer()
-        );
+        SoccerMatchManager.tick(event.getServer());
     }
 
     /**
-     * Sincroniza el HUD cuando un jugador entra.
+     * Al entrar, el jugador conserva su equipo porque la asignación
+     * está guardada por UUID en teams.json.
      */
     @SubscribeEvent
     public static void onPlayerLogin(
             PlayerEvent.PlayerLoggedInEvent event
     ) {
-        if (!(event.getEntity()
-                instanceof net.minecraft.server.level.ServerPlayer player)) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) {
             return;
         }
 

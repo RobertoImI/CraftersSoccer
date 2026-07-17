@@ -14,15 +14,15 @@ import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
- * Administra el partido, los equipos y sus nombres.
+ * Administra el partido, las plantillas y los nombres.
+ *
+ * Las plantillas y nombres se guardan permanentemente en teams.json.
+ * El partido activo, el tiempo y el marcador continúan siendo temporales.
  */
 public final class SoccerMatchManager {
 
-    private static final String DEFAULT_RED_NAME =
-            "Equipo Rojo";
-
-    private static final String DEFAULT_BLUE_NAME =
-            "Equipo Azul";
+    public static final String DEFAULT_RED_NAME = "Equipo Rojo";
+    public static final String DEFAULT_BLUE_NAME = "Equipo Azul";
 
     private static final Set<UUID> RED_PLAYERS =
             new LinkedHashSet<>();
@@ -31,39 +31,61 @@ public final class SoccerMatchManager {
             new LinkedHashSet<>();
 
     private static MinecraftServer currentServer;
+    private static boolean loaded;
+
     private static SoccerMatch activeMatch;
 
-    private static String redTeamName =
-            DEFAULT_RED_NAME;
+    private static String redTeamName = DEFAULT_RED_NAME;
+    private static String blueTeamName = DEFAULT_BLUE_NAME;
 
-    private static String blueTeamName =
-            DEFAULT_BLUE_NAME;
+    /*
+     * Se guardan desde este bloque para que el bloque 2 del portero
+     * pueda utilizarlos sin cambiar el formato del JSON nuevamente.
+     */
+    private static UUID redGoalkeeper;
+    private static UUID blueGoalkeeper;
 
     private static int synchronizationTicker;
 
     private SoccerMatchManager() {
     }
 
-    private static void ensureServer(
+    public static void ensureLoaded(
             MinecraftServer server
     ) {
-        if (currentServer == server) {
+        if (loaded && currentServer == server) {
             return;
         }
 
         currentServer = server;
+        loaded = true;
         activeMatch = null;
+        synchronizationTicker = 0;
 
         RED_PLAYERS.clear();
         BLUE_PLAYERS.clear();
 
-        redTeamName =
-                DEFAULT_RED_NAME;
+        SoccerTeamStorage.TeamData data =
+                SoccerTeamStorage.load(server);
 
-        blueTeamName =
-                DEFAULT_BLUE_NAME;
+        redTeamName = data.redTeamName();
+        blueTeamName = data.blueTeamName();
 
-        synchronizationTicker = 0;
+        RED_PLAYERS.addAll(data.redPlayers());
+        BLUE_PLAYERS.addAll(data.bluePlayers());
+
+        redGoalkeeper = data.redGoalkeeper();
+        blueGoalkeeper = data.blueGoalkeeper();
+
+        normalizeLoadedData();
+
+        SoccerTeamDisplayManager.synchronize(
+                server,
+                RED_PLAYERS,
+                BLUE_PLAYERS,
+                redTeamName,
+                blueTeamName
+        );
     }
 
     public static boolean addPlayer(
@@ -71,68 +93,108 @@ public final class SoccerMatchManager {
             ServerPlayer player,
             SoccerTeamSide side
     ) {
-        ensureServer(server);
+        ensureLoaded(server);
 
-        RED_PLAYERS.remove(
-                player.getUUID()
-        );
+        UUID playerId = player.getUUID();
+        SoccerTeamSide previousSide = getPlayerTeam(server, playerId);
 
-        BLUE_PLAYERS.remove(
-                player.getUUID()
-        );
+        if (previousSide == side) {
+            return false;
+        }
 
-        boolean added =
-                getTeam(side).add(
-                        player.getUUID()
-                );
+        RED_PLAYERS.remove(playerId);
+        BLUE_PLAYERS.remove(playerId);
 
-        SoccerTeamDisplayManager.synchronize(
-                server,
-                RED_PLAYERS,
-                BLUE_PLAYERS,
-                redTeamName,
-                blueTeamName
-        );
+        /* Si cambia de equipo deja de ser portero del equipo anterior. */
+        if (playerId.equals(redGoalkeeper)) {
+            redGoalkeeper = null;
+        }
 
-        synchronize(server);
+        if (playerId.equals(blueGoalkeeper)) {
+            blueGoalkeeper = null;
+        }
 
-        return added;
+        getMutableTeam(side).add(playerId);
+
+        saveAndSynchronize(server);
+        return true;
     }
 
     public static boolean removePlayer(
             MinecraftServer server,
             UUID playerId
     ) {
-        ensureServer(server);
+        ensureLoaded(server);
 
-        boolean removedRed =
-                RED_PLAYERS.remove(playerId);
+        boolean removed =
+                RED_PLAYERS.remove(playerId)
+                        | BLUE_PLAYERS.remove(playerId);
 
-        boolean removedBlue =
-                BLUE_PLAYERS.remove(playerId);
-
-        ServerPlayer player =
-                server.getPlayerList()
-                        .getPlayer(playerId);
-
-        if (player != null) {
-            SoccerTeamDisplayManager.removePlayer(
-                    server,
-                    player
-            );
+        if (playerId.equals(redGoalkeeper)) {
+            redGoalkeeper = null;
         }
 
-        SoccerTeamDisplayManager.synchronize(
-                server,
-                RED_PLAYERS,
-                BLUE_PLAYERS,
-                redTeamName,
-                blueTeamName
-        );
+        if (playerId.equals(blueGoalkeeper)) {
+            blueGoalkeeper = null;
+        }
 
+        if (!removed) {
+            return false;
+        }
+
+        saveAndSynchronize(server);
+        return true;
+    }
+
+    /**
+     * Vacía un solo equipo.
+     * Conserva su nombre personalizado para poder reutilizarlo.
+     */
+    public static int clearTeam(
+            MinecraftServer server,
+            SoccerTeamSide side
+    ) {
+        ensureLoaded(server);
+
+        Set<UUID> team = getMutableTeam(side);
+        int removed = team.size();
+        team.clear();
+
+        if (side == SoccerTeamSide.RED) {
+            redGoalkeeper = null;
+        } else {
+            blueGoalkeeper = null;
+        }
+
+        saveAndSynchronize(server);
+        return removed;
+    }
+
+    /**
+     * Vacía ambos equipos, elimina porteros y restaura nombres.
+     * No elimina la cancha ni detiene automáticamente el servidor.
+     */
+    public static int clearAllTeams(
+            MinecraftServer server
+    ) {
+        ensureLoaded(server);
+
+        int removed = RED_PLAYERS.size() + BLUE_PLAYERS.size();
+
+        RED_PLAYERS.clear();
+        BLUE_PLAYERS.clear();
+
+        redGoalkeeper = null;
+        blueGoalkeeper = null;
+
+        redTeamName = DEFAULT_RED_NAME;
+        blueTeamName = DEFAULT_BLUE_NAME;
+
+        SoccerTeamDisplayManager.clearAll(server);
+        save(server);
         synchronize(server);
 
-        return removedRed || removedBlue;
+        return removed;
     }
 
     public static boolean setTeamName(
@@ -140,12 +202,9 @@ public final class SoccerMatchManager {
             SoccerTeamSide side,
             String requestedName
     ) {
-        ensureServer(server);
+        ensureLoaded(server);
 
-        String safeName =
-                sanitizeTeamName(
-                        requestedName
-                );
+        String safeName = sanitizeTeamName(requestedName);
 
         if (safeName.isBlank()) {
             return false;
@@ -153,35 +212,25 @@ public final class SoccerMatchManager {
 
         if (side == SoccerTeamSide.RED) {
             redTeamName = safeName;
-
         } else {
             blueTeamName = safeName;
         }
 
-        SoccerTeamDisplayManager.synchronize(
-                server,
-                RED_PLAYERS,
-                BLUE_PLAYERS,
-                redTeamName,
-                blueTeamName
-        );
-
-        synchronize(server);
-
+        saveAndSynchronize(server);
         return true;
     }
 
     public static String getRedTeamName(
             MinecraftServer server
     ) {
-        ensureServer(server);
+        ensureLoaded(server);
         return redTeamName;
     }
 
     public static String getBlueTeamName(
             MinecraftServer server
     ) {
-        ensureServer(server);
+        ensureLoaded(server);
         return blueTeamName;
     }
 
@@ -197,14 +246,14 @@ public final class SoccerMatchManager {
     public static Set<UUID> getRedPlayers(
             MinecraftServer server
     ) {
-        ensureServer(server);
+        ensureLoaded(server);
         return Set.copyOf(RED_PLAYERS);
     }
 
     public static Set<UUID> getBluePlayers(
             MinecraftServer server
     ) {
-        ensureServer(server);
+        ensureLoaded(server);
         return Set.copyOf(BLUE_PLAYERS);
     }
 
@@ -212,7 +261,7 @@ public final class SoccerMatchManager {
             MinecraftServer server,
             UUID playerId
     ) {
-        ensureServer(server);
+        ensureLoaded(server);
 
         if (RED_PLAYERS.contains(playerId)) {
             return SoccerTeamSide.RED;
@@ -225,10 +274,43 @@ public final class SoccerMatchManager {
         return null;
     }
 
+    public static UUID getGoalkeeper(
+            MinecraftServer server,
+            SoccerTeamSide side
+    ) {
+        ensureLoaded(server);
+        return side == SoccerTeamSide.RED
+                ? redGoalkeeper
+                : blueGoalkeeper;
+    }
+
+    /** Se utilizará en el bloque 2. */
+    public static boolean setGoalkeeper(
+            MinecraftServer server,
+            SoccerTeamSide side,
+            UUID playerId
+    ) {
+        ensureLoaded(server);
+
+        if (playerId != null
+                && !getMutableTeam(side).contains(playerId)) {
+            return false;
+        }
+
+        if (side == SoccerTeamSide.RED) {
+            redGoalkeeper = playerId;
+        } else {
+            blueGoalkeeper = playerId;
+        }
+
+        save(server);
+        return true;
+    }
+
     public static SoccerMatch getActiveMatch(
             MinecraftServer server
     ) {
-        ensureServer(server);
+        ensureLoaded(server);
         return activeMatch;
     }
 
@@ -237,20 +319,16 @@ public final class SoccerMatchManager {
             SoccerField field,
             int minutes
     ) {
-        ensureServer(server);
+        ensureLoaded(server);
 
         if (activeMatch != null) {
             return false;
         }
 
-        int durationTicks =
-                minutes * 60 * 20;
-
-        activeMatch =
-                new SoccerMatch(
-                        field.getId(),
-                        durationTicks
-                );
+        activeMatch = new SoccerMatch(
+                field.getId(),
+                minutes * 60 * 20
+        );
 
         SoccerTeamDisplayManager.synchronize(
                 server,
@@ -268,14 +346,13 @@ public final class SoccerMatchManager {
         );
 
         synchronize(server);
-
         return true;
     }
 
     public static boolean pauseMatch(
             MinecraftServer server
     ) {
-        ensureServer(server);
+        ensureLoaded(server);
 
         if (activeMatch == null) {
             return false;
@@ -283,14 +360,13 @@ public final class SoccerMatchManager {
 
         activeMatch.pause();
         synchronize(server);
-
         return true;
     }
 
     public static boolean resumeMatch(
             MinecraftServer server
     ) {
-        ensureServer(server);
+        ensureLoaded(server);
 
         if (activeMatch == null) {
             return false;
@@ -298,53 +374,45 @@ public final class SoccerMatchManager {
 
         activeMatch.resume();
         synchronize(server);
-
         return true;
     }
 
     public static boolean stopMatch(
             MinecraftServer server
     ) {
-        ensureServer(server);
+        ensureLoaded(server);
 
         if (activeMatch == null) {
             return false;
         }
 
-        SoccerField field =
-                SoccerFieldManager.getField(
-                        server,
-                        activeMatch.getFieldId()
-                );
+        SoccerField field = SoccerFieldManager.getField(
+                server,
+                activeMatch.getFieldId()
+        );
 
         if (field != null) {
-            activeMatch.removeOfficialBall(
-                    server,
-                    field
-            );
+            activeMatch.removeOfficialBall(server, field);
         }
 
         activeMatch = null;
-
         sendInactiveState(server);
-
         return true;
     }
 
     public static void tick(
             MinecraftServer server
     ) {
-        ensureServer(server);
+        ensureLoaded(server);
 
         if (activeMatch == null) {
             return;
         }
 
-        SoccerField field =
-                SoccerFieldManager.getField(
-                        server,
-                        activeMatch.getFieldId()
-                );
+        SoccerField field = SoccerFieldManager.getField(
+                server,
+                activeMatch.getFieldId()
+        );
 
         if (field == null) {
             stopMatch(server);
@@ -374,7 +442,7 @@ public final class SoccerMatchManager {
             MinecraftServer server,
             ServerPlayer player
     ) {
-        ensureServer(server);
+        ensureLoaded(server);
 
         SoccerTeamDisplayManager.synchronize(
                 server,
@@ -389,24 +457,19 @@ public final class SoccerMatchManager {
                     player,
                     MatchStatePayload.inactive()
             );
-
             return;
         }
 
         PacketDistributor.sendToPlayer(
                 player,
-                createPayload(
-                        server,
-                        activeMatch,
-                        player
-                )
+                createPayload(server, activeMatch, player)
         );
     }
 
     public static void synchronize(
             MinecraftServer server
     ) {
-        ensureServer(server);
+        ensureLoaded(server);
 
         if (activeMatch == null) {
             sendInactiveState(server);
@@ -414,16 +477,11 @@ public final class SoccerMatchManager {
         }
 
         for (ServerPlayer player
-                : server.getPlayerList()
-                .getPlayers()) {
+                : server.getPlayerList().getPlayers()) {
 
             PacketDistributor.sendToPlayer(
                     player,
-                    createPayload(
-                            server,
-                            activeMatch,
-                            player
-                    )
+                    createPayload(server, activeMatch, player)
             );
         }
     }
@@ -433,14 +491,10 @@ public final class SoccerMatchManager {
             SoccerMatch match,
             ServerPlayer player
     ) {
-        SoccerTeamSide playerSide =
-                getPlayerTeam(
-                        server,
-                        player.getUUID()
-                );
-
-        boolean participant =
-                playerSide != null;
+        SoccerTeamSide playerSide = getPlayerTeam(
+                server,
+                player.getUUID()
+        );
 
         return new MatchStatePayload(
                 true,
@@ -452,36 +506,73 @@ public final class SoccerMatchManager {
                 match.getRemainingTicks(),
                 match.getState().name(),
                 match.getMessage(),
-                participant,
-                playerSide == null
-                        ? ""
-                        : playerSide.name()
+                playerSide != null,
+                playerSide == null ? "" : playerSide.name()
         );
     }
 
     private static void sendInactiveState(
             MinecraftServer server
     ) {
-        MatchStatePayload payload =
-                MatchStatePayload.inactive();
+        MatchStatePayload payload = MatchStatePayload.inactive();
 
         for (ServerPlayer player
-                : server.getPlayerList()
-                .getPlayers()) {
-
-            PacketDistributor.sendToPlayer(
-                    player,
-                    payload
-            );
+                : server.getPlayerList().getPlayers()) {
+            PacketDistributor.sendToPlayer(player, payload);
         }
     }
 
-    private static Set<UUID> getTeam(
+    private static Set<UUID> getMutableTeam(
             SoccerTeamSide side
     ) {
         return side == SoccerTeamSide.RED
                 ? RED_PLAYERS
                 : BLUE_PLAYERS;
+    }
+
+    private static void normalizeLoadedData() {
+        /* Un jugador no puede pertenecer a ambos equipos. */
+        BLUE_PLAYERS.removeAll(RED_PLAYERS);
+
+        if (redGoalkeeper != null
+                && !RED_PLAYERS.contains(redGoalkeeper)) {
+            redGoalkeeper = null;
+        }
+
+        if (blueGoalkeeper != null
+                && !BLUE_PLAYERS.contains(blueGoalkeeper)) {
+            blueGoalkeeper = null;
+        }
+    }
+
+    private static void saveAndSynchronize(
+            MinecraftServer server
+    ) {
+        save(server);
+
+        SoccerTeamDisplayManager.synchronize(
+                server,
+                RED_PLAYERS,
+                BLUE_PLAYERS,
+                redTeamName,
+                blueTeamName
+        );
+
+        synchronize(server);
+    }
+
+    private static void save(
+            MinecraftServer server
+    ) {
+        SoccerTeamStorage.save(
+                server,
+                redTeamName,
+                blueTeamName,
+                RED_PLAYERS,
+                BLUE_PLAYERS,
+                redGoalkeeper,
+                blueGoalkeeper
+        );
     }
 
     private static String sanitizeTeamName(
@@ -491,30 +582,13 @@ public final class SoccerMatchManager {
             return "";
         }
 
-        /*
-         * Quitar códigos de formato de Minecraft
-         * introducidos con el símbolo §.
-         */
-        String cleaned =
-                requestedName
-                        .replaceAll(
-                                "§.",
-                                ""
-                        )
-                        .trim()
-                        .replaceAll(
-                                "\\s+",
-                                " "
-                        );
+        String cleaned = requestedName
+                .replaceAll("§.", "")
+                .trim()
+                .replaceAll("\\s+", " ");
 
-        if (cleaned.length() > 24) {
-            cleaned =
-                    cleaned.substring(
-                            0,
-                            24
-                    );
-        }
-
-        return cleaned;
+        return cleaned.length() > 24
+                ? cleaned.substring(0, 24)
+                : cleaned;
     }
 }
