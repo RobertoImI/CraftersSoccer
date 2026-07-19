@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.crafterscr.crafterssoccer.entity.SoccerBallEntity;
 import org.crafterscr.crafterssoccer.field.SoccerField;
+import org.crafterscr.crafterssoccer.referee.RefereeCardManager;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -50,6 +51,12 @@ public final class GoalkeeperManager {
             ServerPlayer player,
             int requestedBallEntityId
     ) {
+        if (RefereeCardManager.isExpelled(
+                player.getUUID()
+        )) {
+            return;
+        }
+
         SoccerMatch match =
                 SoccerMatchManager.getActiveMatch(server);
 

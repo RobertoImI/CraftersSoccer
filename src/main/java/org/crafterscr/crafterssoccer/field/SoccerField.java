@@ -47,6 +47,12 @@ public final class SoccerField {
     private BlockPos blueGoalkeeperAreaPosition1;
     private BlockPos blueGoalkeeperAreaPosition2;
 
+    /*
+     * Puntos donde esperan los jugadores expulsados.
+     */
+    private BlockPos redPenaltyPosition;
+    private BlockPos bluePenaltyPosition;
+
     public SoccerField(
             String id,
             String dimensionId
@@ -188,6 +194,37 @@ public final class SoccerField {
 
     public void setBlueGoalkeeperAreaPosition2(BlockPos position) {
         this.blueGoalkeeperAreaPosition2 = immutable(position);
+    }
+
+    public BlockPos getRedPenaltyPosition() {
+        return redPenaltyPosition;
+    }
+
+    public void setRedPenaltyPosition(
+            BlockPos position
+    ) {
+        this.redPenaltyPosition =
+                immutable(position);
+    }
+
+    public BlockPos getBluePenaltyPosition() {
+        return bluePenaltyPosition;
+    }
+
+    public void setBluePenaltyPosition(
+            BlockPos position
+    ) {
+        this.bluePenaltyPosition =
+                immutable(position);
+    }
+
+    public BlockPos getPenaltyPosition(
+            org.crafterscr.crafterssoccer.match.SoccerTeamSide side
+    ) {
+        return side
+                == org.crafterscr.crafterssoccer.match.SoccerTeamSide.RED
+                ? redPenaltyPosition
+                : bluePenaltyPosition;
     }
 
     public List<BlockPos> getRedSpawns() {

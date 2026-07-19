@@ -5,5 +5,8 @@
   "subtitles.crafterssoccer.whistle_end": "Suena el silbato final",
 
   "key.crafterssoccer.referee_whistle": "Silbato del árbitro",
-  "key.categories.crafterssoccer": "CraftersSoccer"
+  "key.categories.crafterssoccer": "CraftersSoccer",
+
+  "item.crafterssoccer.yellow_card": "Tarjeta amarilla",
+  "item.crafterssoccer.red_card": "Tarjeta roja"
 }

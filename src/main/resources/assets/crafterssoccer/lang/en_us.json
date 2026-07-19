@@ -5,5 +5,8 @@
   "subtitles.crafterssoccer.whistle_end": "Final whistle blows",
 
   "key.crafterssoccer.referee_whistle": "Referee Whistle",
-  "key.categories.crafterssoccer": "CraftersSoccer"
+  "key.categories.crafterssoccer": "CraftersSoccer",
+
+  "item.crafterssoccer.yellow_card": "Yellow Card",
+  "item.crafterssoccer.red_card": "Red Card"
 }

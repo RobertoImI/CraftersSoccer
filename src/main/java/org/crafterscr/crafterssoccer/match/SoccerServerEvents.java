@@ -1,6 +1,7 @@
 package org.crafterscr.crafterssoccer.match;
 
 import org.crafterscr.crafterssoccer.CraftersSoccer;
+import org.crafterscr.crafterssoccer.referee.RefereeCardManager;
 
 import net.minecraft.server.level.ServerPlayer;
 
@@ -26,6 +27,10 @@ public final class SoccerServerEvents {
             ServerTickEvent.Post event
     ) {
         SoccerMatchManager.tick(event.getServer());
+
+        RefereeCardManager.tick(
+                event.getServer()
+        );
     }
 
     /**
@@ -41,6 +46,16 @@ public final class SoccerServerEvents {
         }
 
         SoccerMatchManager.synchronizePlayer(
+                player.getServer(),
+                player
+        );
+
+        RefereeCardManager.ensureRefereeCards(
+                player.getServer(),
+                player
+        );
+
+        RefereeCardManager.handlePlayerLogin(
                 player.getServer(),
                 player
         );

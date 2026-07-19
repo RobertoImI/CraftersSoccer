@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.crafterscr.crafterssoccer.field.SoccerField;
 import org.crafterscr.crafterssoccer.field.SoccerFieldManager;
 import org.crafterscr.crafterssoccer.network.MatchStatePayload;
+import org.crafterscr.crafterssoccer.referee.RefereeCardManager;
 
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -376,6 +377,19 @@ public final class SoccerMatchManager {
             return false;
         }
 
+        if (referee != null) {
+            ServerPlayer previousReferee =
+                    server.getPlayerList().getPlayer(
+                            referee
+                    );
+
+            if (previousReferee != null) {
+                RefereeCardManager.removeRefereeCards(
+                        previousReferee
+                );
+            }
+        }
+
         RED_PLAYERS.remove(playerId);
         BLUE_PLAYERS.remove(playerId);
 
@@ -389,6 +403,18 @@ public final class SoccerMatchManager {
 
         referee = playerId;
 
+        ServerPlayer newReferee =
+                server.getPlayerList().getPlayer(
+                        playerId
+                );
+
+        if (newReferee != null) {
+            RefereeCardManager.ensureRefereeCards(
+                    server,
+                    newReferee
+            );
+        }
+
         saveAndSynchronize(server);
         return true;
     }
@@ -400,6 +426,17 @@ public final class SoccerMatchManager {
 
         if (referee == null) {
             return false;
+        }
+
+        ServerPlayer previousReferee =
+                server.getPlayerList().getPlayer(
+                        referee
+                );
+
+        if (previousReferee != null) {
+            RefereeCardManager.removeRefereeCards(
+                    previousReferee
+            );
         }
 
         referee = null;
@@ -498,6 +535,11 @@ public final class SoccerMatchManager {
         if (field != null) {
             activeMatch.removeOfficialBall(server, field);
         }
+
+        RefereeCardManager.cancelAllExpulsions(
+                server,
+                true
+        );
 
         activeMatch = null;
         sendInactiveState(server);

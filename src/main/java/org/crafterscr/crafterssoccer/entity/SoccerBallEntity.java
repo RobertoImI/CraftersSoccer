@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.crafterscr.crafterssoccer.physics.SoccerBallPhysics;
+import org.crafterscr.crafterssoccer.referee.RefereeCardManager;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerPlayer;
@@ -650,6 +651,9 @@ public class SoccerBallEntity extends Entity {
                         player ->
                                 player.isAlive()
                                         && !player.isSpectator()
+                                        && !RefereeCardManager.isExpelled(
+                                        player.getUUID()
+                                )
                 );
 
         Set<UUID> playersSeenThisTick =
@@ -1662,6 +1666,12 @@ public class SoccerBallEntity extends Entity {
             float charge
     ) {
         if (!this.isAlive()) {
+            return;
+        }
+
+        if (RefereeCardManager.isExpelled(
+                player.getUUID()
+        )) {
             return;
         }
 

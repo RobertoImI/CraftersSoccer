@@ -1,9 +1,11 @@
 package org.crafterscr.crafterssoccer;
 
 import org.crafterscr.crafterssoccer.command.SoccerCommands;
+import org.crafterscr.crafterssoccer.command.RefereeCardCommands;
 import org.crafterscr.crafterssoccer.network.ModNetworking;
 import org.crafterscr.crafterssoccer.registry.ModEntities;
 import org.crafterscr.crafterssoccer.registry.ModSounds;
+import org.crafterscr.crafterssoccer.registry.ModItems;
 
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
@@ -39,6 +41,13 @@ public final class CraftersSoccer {
         );
 
         /*
+         * Registrar objetos: tarjeta amarilla y roja.
+         */
+        ModItems.ITEMS.register(
+                modEventBus
+        );
+
+        /*
          * Registrar paquetes de red.
          */
         modEventBus.addListener(
@@ -50,6 +59,10 @@ public final class CraftersSoccer {
          */
         NeoForge.EVENT_BUS.addListener(
                 SoccerCommands::register
+        );
+
+        NeoForge.EVENT_BUS.addListener(
+                RefereeCardCommands::register
         );
     }
 }

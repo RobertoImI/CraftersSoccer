@@ -273,7 +273,7 @@ public final class SoccerFieldManager {
 
     private static final class FieldStorageData {
 
-        private int version = 4;
+        private int version = 5;
 
         private List<FieldData> fields =
                 new ArrayList<>();
@@ -306,6 +306,9 @@ public final class SoccerFieldManager {
         private PositionData redGoalkeeperAreaPosition2;
         private PositionData blueGoalkeeperAreaPosition1;
         private PositionData blueGoalkeeperAreaPosition2;
+
+        private PositionData redPenaltyPosition;
+        private PositionData bluePenaltyPosition;
 
         private static FieldData fromField(
                 SoccerField field
@@ -393,6 +396,16 @@ public final class SoccerFieldManager {
             data.blueGoalkeeperAreaPosition2 =
                     PositionData.fromBlockPos(
                             field.getBlueGoalkeeperAreaPosition2()
+                    );
+
+            data.redPenaltyPosition =
+                    PositionData.fromBlockPos(
+                            field.getRedPenaltyPosition()
+                    );
+
+            data.bluePenaltyPosition =
+                    PositionData.fromBlockPos(
+                            field.getBluePenaltyPosition()
                     );
 
             return data;
@@ -527,6 +540,18 @@ public final class SoccerFieldManager {
             field.setBlueGoalkeeperAreaPosition2(
                     PositionData.toBlockPos(
                             blueGoalkeeperAreaPosition2
+                    )
+            );
+
+            field.setRedPenaltyPosition(
+                    PositionData.toBlockPos(
+                            redPenaltyPosition
+                    )
+            );
+
+            field.setBluePenaltyPosition(
+                    PositionData.toBlockPos(
+                            bluePenaltyPosition
                     )
             );
 
