@@ -31,6 +31,16 @@ public final class SoccerServerEvents {
         RefereeCardManager.tick(
                 event.getServer()
         );
+
+        org.crafterscr.crafterssoccer.knockdown
+                .PlayerImpactManager.tick(
+                        event.getServer()
+                );
+
+        org.crafterscr.crafterssoccer.slide
+                .SlideManager.tick(
+                        event.getServer()
+                );
     }
 
     /**
@@ -59,5 +69,10 @@ public final class SoccerServerEvents {
                 player.getServer(),
                 player
         );
+
+        org.crafterscr.crafterssoccer.knockdown
+                .PlayerImpactManager.handleLogin(
+                        player
+                );
     }
 }

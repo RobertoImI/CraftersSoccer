@@ -60,9 +60,37 @@ sourceSets.main.resources {
 }
 
 repositories {
+    maven {
+        name = "KosmX Maven"
+        url = uri("https://maven.kosmx.dev/")
+    }
 }
 
 dependencies {
+    /*
+     * PlayerAnimator reproduce las animaciones JSON.
+     * Se mantiene como dependencia externa requerida.
+     */
+    implementation(
+            "dev.kosmx.player-anim:player-animation-lib-forge:${player_anim_version}"
+    )
+
+    /*
+     * Emotecraft 1.21.1 incluye BendyLib 5.1 dentro de su propio JAR.
+     * Aquí hacemos lo mismo mediante Jar-in-Jar de ModDevGradle.
+     *
+     * NO es una dependencia externa que el usuario deba descargar.
+     */
+    jarJar(
+            implementation(
+                    "io.github.kosmx.bendy-lib:bendy-lib-forge"
+            )
+    ) {
+        version {
+            strictly "[5.1]"
+            prefer "${bendy_lib_version}"
+        }
+    }
 }
 
 tasks.withType(ProcessResources).configureEach {

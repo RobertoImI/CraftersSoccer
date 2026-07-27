@@ -9,6 +9,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
@@ -30,6 +31,14 @@ public final class ClientModEvents {
     public static final class ModBusEvents {
 
         private ModBusEvents() {
+        }
+
+        @SubscribeEvent
+        public static void onClientSetup(
+                FMLClientSetupEvent event
+        ) {
+            KnockdownAnimationClient.registerFactory();
+            SlideAnimationClient.registerFactory();
         }
 
         @SubscribeEvent
@@ -58,6 +67,14 @@ public final class ClientModEvents {
         ) {
             event.register(
                     RefereeKeyMappings.WHISTLE
+            );
+
+            event.register(
+                    KnockdownKeyMappings.STAND_UP
+            );
+
+            event.register(
+                    SlideKeyMappings.SLIDE
             );
         }
 
@@ -88,6 +105,14 @@ public final class ClientModEvents {
                     ),
                     SoccerCrosshairGui::render
             );
+
+            event.registerAboveAll(
+                    ResourceLocation.fromNamespaceAndPath(
+                            CraftersSoccer.MOD_ID,
+                            "knockdown_recovery"
+                    ),
+                    KnockdownRecoveryHud::render
+            );
         }
     }
 
@@ -109,6 +134,20 @@ public final class ClientModEvents {
                     Minecraft.getInstance();
 
             RefereeKeyMappings.clientTick();
+            KnockdownKeyMappings.clientTick();
+            SlideKeyMappings.clientTick();
+
+            ClientKnockdownState.clientTick(
+                    minecraft
+            );
+
+            ClientSlideState.clientTick(
+                    minecraft
+            );
+
+            KnockdownCameraController.clientTick(
+                    minecraft
+            );
 
             ClientSoccerState.clientTick(
                     minecraft
@@ -117,7 +156,11 @@ public final class ClientModEvents {
             if (minecraft.player == null
                     || minecraft.level == null) {
 
+                KnockdownCameraController.restoreCamera();
                 ClientMatchState.reset();
+                ClientKnockdownState.reset();
+                ClientRecoveryState.reset();
+                ClientSlideState.reset();
             }
         }
     }

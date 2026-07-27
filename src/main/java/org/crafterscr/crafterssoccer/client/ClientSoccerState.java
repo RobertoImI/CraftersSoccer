@@ -75,6 +75,16 @@ public final class ClientSoccerState {
             return;
         }
 
+        /*
+         * No se puede patear ni agarrar el balón mientras
+         * está derribado o ejecutando un barrido.
+         */
+        if (ClientKnockdownState.isLocalPlayerDown()
+                || ClientSlideState.isLocalPlayerSliding()) {
+            resetEverything();
+            return;
+        }
+
         handleRefereeBallUse(minecraft);
         handleGoalkeeperUse(minecraft);
 

@@ -8,5 +8,12 @@
   "key.categories.crafterssoccer": "CraftersSoccer",
 
   "item.crafterssoccer.yellow_card": "Yellow Card",
-  "item.crafterssoccer.red_card": "Red Card"
+  "item.crafterssoccer.red_card": "Red Card",
+
+  "key.crafterssoccer.stand_up": "Stand Up",
+  "crafterssoccer.animation.player_knockdown": "Player Knockdown",
+  "crafterssoccer.animation.player_knockdown.description": "Fall caused by accumulated player impacts",
+
+  "key.crafterssoccer.slide": "Slide tackle",
+  "key.categories.crafterssoccer": "Crafters Soccer"
 }

@@ -175,6 +175,12 @@ public class SoccerBallEntity extends Entity {
      */
     private long refereeSettleUntilGameTime;
 
+    /*
+     * Control temporal ganado mediante un barrido limpio.
+     */
+    private UUID slideController;
+    private long slideControlUntilGameTime;
+
     public SoccerBallEntity(
             EntityType<? extends SoccerBallEntity> entityType,
             Level level
@@ -200,6 +206,11 @@ public class SoccerBallEntity extends Entity {
 
         this.previousRollDegrees =
                 this.rollDegrees;
+
+        if (!this.level().isClientSide()
+                && tickSlideControl()) {
+            return;
+        }
 
         if (!this.level().isClientSide()
                 && tickRefereeHold()) {
@@ -240,11 +251,162 @@ public class SoccerBallEntity extends Entity {
     }
 
     /**
+     * Otorga control temporal del balón después de un robo
+     * realizado con barrido.
+     */
+    public void grantSlideControl(
+            ServerPlayer player,
+            int maximumTicks
+    ) {
+        if (isHeldByReferee()
+                || isHeldByGoalkeeper()) {
+            return;
+        }
+
+        this.slideController =
+                player.getUUID();
+
+        this.slideControlUntilGameTime =
+                this.level().getGameTime()
+                        + Math.max(
+                        1,
+                        maximumTicks
+                );
+
+        this.setDeltaMovement(
+                Vec3.ZERO
+        );
+
+        this.hasImpulse = true;
+    }
+
+    public boolean isControlledBySlide() {
+        return slideController != null;
+    }
+
+    public boolean isControlledBySlide(
+            UUID playerId
+    ) {
+        return slideController != null
+                && slideController.equals(
+                playerId
+        );
+    }
+
+    public void releaseSlideControl() {
+        this.slideController = null;
+        this.slideControlUntilGameTime = 0L;
+    }
+
+    /**
+     * Mantiene el balón cerca de los pies, pero con una transición
+     * suave para que no parezca rígidamente pegado.
+     */
+    private boolean tickSlideControl() {
+        if (slideController == null) {
+            return false;
+        }
+
+        if (!(this.level()
+                instanceof net.minecraft.server.level.ServerLevel serverLevel)) {
+            return false;
+        }
+
+        Player found =
+                serverLevel.getPlayerByUUID(
+                        slideController
+                );
+
+        if (!(found instanceof ServerPlayer controller)
+                || !controller.isAlive()
+                || RefereeCardManager.isExpelled(
+                slideController
+        )
+                || this.level().getGameTime()
+                >= slideControlUntilGameTime) {
+
+            releaseSlideControl();
+            return false;
+        }
+
+        Vec3 forward =
+                controller.getLookAngle()
+                        .multiply(
+                                1.0D,
+                                0.0D,
+                                1.0D
+                        );
+
+        if (forward.lengthSqr() < 0.0001D) {
+            forward =
+                    new Vec3(
+                            0.0D,
+                            0.0D,
+                            1.0D
+                    );
+        } else {
+            forward =
+                    forward.normalize();
+        }
+
+        Vec3 target =
+                controller.position()
+                        .add(
+                                forward.scale(
+                                        0.72D
+                                )
+                        )
+                        .add(
+                                0.0D,
+                                0.18D,
+                                0.0D
+                        );
+
+        Vec3 difference =
+                target.subtract(
+                        this.position()
+                );
+
+        /*
+         * Seguimiento elástico: avanza hacia el objetivo
+         * sin teletransportarse completamente cada tick.
+         */
+        Vec3 assistedVelocity =
+                difference.scale(
+                                0.42D
+                        )
+                        .add(
+                                controller.getDeltaMovement()
+                                        .multiply(
+                                                0.55D,
+                                                0.0D,
+                                                0.55D
+                                        )
+                        );
+
+        this.setDeltaMovement(
+                SoccerBallPhysics.clampVelocity(
+                        assistedVelocity
+                )
+        );
+
+        this.move(
+                net.minecraft.world.entity.MoverType.SELF,
+                this.getDeltaMovement()
+        );
+
+        this.hasImpulse = true;
+        return true;
+    }
+
+    /**
      * Vincula el balón al árbitro sin límite de tiempo.
      */
     public void holdByReferee(
             ServerPlayer player
     ) {
+        releaseSlideControl();
+
         this.refereeHolder =
                 player.getUUID();
 
@@ -501,6 +663,8 @@ public class SoccerBallEntity extends Entity {
         if (isHeldByReferee()) {
             return;
         }
+
+        releaseSlideControl();
 
         this.goalkeeperHolder = player.getUUID();
         this.goalkeeperHoldUntilGameTime =
@@ -1684,6 +1848,19 @@ public class SoccerBallEntity extends Entity {
             return;
         }
 
+        if (isControlledBySlide()
+                && !isControlledBySlide(
+                player.getUUID()
+        )) {
+            return;
+        }
+
+        if (isControlledBySlide(
+                player.getUUID()
+        )) {
+            releaseSlideControl();
+        }
+
         /*
          * El portero puede despejar con clic izquierdo
          * mientras sostiene la pelota.
@@ -2101,7 +2278,8 @@ public class SoccerBallEntity extends Entity {
     @Override
     public boolean isPushable() {
         return !isHeldByGoalkeeper()
-                && !isHeldByReferee();
+                && !isHeldByReferee()
+                && !isControlledBySlide();
     }
 
     @Override

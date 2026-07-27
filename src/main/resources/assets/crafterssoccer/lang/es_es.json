@@ -8,5 +8,12 @@
   "key.categories.crafterssoccer": "CraftersSoccer",
 
   "item.crafterssoccer.yellow_card": "Tarjeta amarilla",
-  "item.crafterssoccer.red_card": "Tarjeta roja"
+  "item.crafterssoccer.red_card": "Tarjeta roja",
+
+  "key.crafterssoccer.stand_up": "Levantarse",
+  "crafterssoccer.animation.player_knockdown": "Derribo de jugador",
+  "crafterssoccer.animation.player_knockdown.description": "Caída por acumulación de impactos entre jugadores",
+
+  "key.crafterssoccer.slide": "Barrido",
+  "key.categories.crafterssoccer": "Crafters Soccer"
 }

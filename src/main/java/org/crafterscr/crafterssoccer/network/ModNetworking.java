@@ -17,7 +17,7 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
  */
 public final class ModNetworking {
 
-    private static final String NETWORK_VERSION = "6";
+    private static final String NETWORK_VERSION = "9";
 
     private ModNetworking() {
     }
@@ -52,6 +52,36 @@ public final class ModNetworking {
                 RefereeBallActionPayload.TYPE,
                 RefereeBallActionPayload.STREAM_CODEC,
                 ModNetworking::handleRefereeBallAction
+        );
+
+        registrar.playToServer(
+                StandUpPayload.TYPE,
+                StandUpPayload.STREAM_CODEC,
+                ModNetworking::handleStandUp
+        );
+
+        registrar.playToServer(
+                SlideActionPayload.TYPE,
+                SlideActionPayload.STREAM_CODEC,
+                ModNetworking::handleSlideAction
+        );
+
+        registrar.playToClient(
+                KnockdownStatePayload.TYPE,
+                KnockdownStatePayload.STREAM_CODEC,
+                ModNetworking::handleKnockdownState
+        );
+
+        registrar.playToClient(
+                RecoveryProgressPayload.TYPE,
+                RecoveryProgressPayload.STREAM_CODEC,
+                ModNetworking::handleRecoveryProgress
+        );
+
+        registrar.playToClient(
+                SlideStatePayload.TYPE,
+                SlideStatePayload.STREAM_CODEC,
+                ModNetworking::handleSlideState
         );
 
         registrar.playToClient(
@@ -137,6 +167,78 @@ public final class ModNetworking {
                         payload.ballEntityId(),
                         payload.holding()
                 )
+        );
+    }
+
+    private static void handleStandUp(
+            StandUpPayload payload,
+            IPayloadContext context
+    ) {
+        if (!(context.player()
+                instanceof ServerPlayer player)) {
+            return;
+        }
+
+        context.enqueueWork(
+                () -> org.crafterscr.crafterssoccer.knockdown
+                        .PlayerImpactManager.handleRecoveryTap(
+                                player
+                        )
+        );
+    }
+
+    private static void handleSlideAction(
+            SlideActionPayload payload,
+            IPayloadContext context
+    ) {
+        if (!(context.player()
+                instanceof ServerPlayer player)) {
+            return;
+        }
+
+        context.enqueueWork(
+                () -> org.crafterscr.crafterssoccer.slide
+                        .SlideManager.tryStart(
+                                player
+                        )
+        );
+    }
+
+    private static void handleSlideState(
+            SlideStatePayload payload,
+            IPayloadContext context
+    ) {
+        context.enqueueWork(
+                () -> org.crafterscr.crafterssoccer.client
+                        .ClientSlideState.apply(
+                                payload.playerEntityId(),
+                                payload.sliding()
+                        )
+        );
+    }
+
+    private static void handleKnockdownState(
+            KnockdownStatePayload payload,
+            IPayloadContext context
+    ) {
+        context.enqueueWork(
+                () -> org.crafterscr.crafterssoccer.client
+                        .ClientKnockdownState.apply(
+                                payload.playerEntityId(),
+                                payload.knockedDown()
+                        )
+        );
+    }
+
+    private static void handleRecoveryProgress(
+            RecoveryProgressPayload payload,
+            IPayloadContext context
+    ) {
+        context.enqueueWork(
+                () -> org.crafterscr.crafterssoccer.client
+                        .ClientRecoveryState.apply(
+                                payload.progressPercent()
+                        )
         );
     }
 
