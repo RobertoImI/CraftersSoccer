@@ -55,11 +55,23 @@ public final class SoccerMatch {
     private int redScore;
     private int blueScore;
 
+    /**
+     * Minutos de reposición configurados por el árbitro o un administrador.
+     * El valor se muestra en el HUD como +5, +7, etc.
+     */
+    private int addedTimeMinutes;
+
     private int remainingTicks;
     private int stateTicks;
 
     private UUID officialBallUuid;
     private Vec3 previousBallCenter;
+
+    /**
+     * Solo el primer conteo del partido anuncia
+     * "¡Comienza el partido!" en el chat.
+     */
+    private boolean firstKickoff = true;
 
     private String message = "COMIENZA EN 3";
 
@@ -71,6 +83,7 @@ public final class SoccerMatch {
         this.initialDurationTicks = durationTicks;
         this.remainingTicks = durationTicks;
         this.stateTicks = INITIAL_COUNTDOWN_TICKS;
+        this.firstKickoff = true;
     }
 
     public String getFieldId() {
@@ -91,6 +104,10 @@ public final class SoccerMatch {
 
     public int getRemainingTicks() {
         return remainingTicks;
+    }
+
+    public int getAddedTimeMinutes() {
+        return addedTimeMinutes;
     }
 
     public String getMessage() {
@@ -221,20 +238,19 @@ public final class SoccerMatch {
         previousBallCenter =
                 getBallCenter(ball);
 
-        /*
-         * Silbato de inicio:
-         * suena exactamente cuando termina el conteo
-         * y el partido cambia a PLAYING.
-         */
         playWhistleForEveryone(
                 server,
                 ModSounds.WHISTLE_START
         );
 
-        broadcast(
-                server,
-                "§a¡Comienza el partido!"
-        );
+        if (firstKickoff) {
+            broadcast(
+                    server,
+                    "§a¡Comienza el partido!"
+            );
+
+            firstKickoff = false;
+        }
     }
 
     private void tickPlaying(
@@ -430,10 +446,6 @@ public final class SoccerMatch {
 
         ball.hasImpulse = true;
 
-        /*
-         * Silbato final:
-         * suena una sola vez cuando el tiempo llega a 00:00.
-         */
         playWhistleForEveryone(
                 server,
                 ModSounds.WHISTLE_END
@@ -445,6 +457,83 @@ public final class SoccerMatch {
                         + redScore
                         + " - "
                         + blueScore
+        );
+    }
+
+    /**
+     * Corrige manualmente el marcador sin provocar pausa de gol,
+     * teletransporte ni reinicio del balón.
+     */
+    public int adjustScore(
+            SoccerTeamSide side,
+            int amount
+    ) {
+        if (side == SoccerTeamSide.RED) {
+            redScore =
+                    Math.max(
+                            0,
+                            redScore + amount
+                    );
+
+            return redScore;
+        }
+
+        blueScore =
+                Math.max(
+                        0,
+                        blueScore + amount
+                );
+
+        return blueScore;
+    }
+
+    /**
+     * Establece el total de reposición.
+     *
+     * La diferencia respecto al valor anterior se suma o se resta
+     * del tiempo restante para que cambiar +5 por +7 agregue
+     * únicamente dos minutos adicionales.
+     */
+    public int setAddedTimeMinutes(
+            int requestedMinutes
+    ) {
+        int safeMinutes =
+                Math.max(
+                        0,
+                        Math.min(
+                                120,
+                                requestedMinutes
+                        )
+                );
+
+        int difference =
+                safeMinutes
+                        - addedTimeMinutes;
+
+        addedTimeMinutes =
+                safeMinutes;
+
+        remainingTicks =
+                Math.max(
+                        0,
+                        remainingTicks
+                                + difference
+                                * 60
+                                * 20
+                );
+
+        return addedTimeMinutes;
+    }
+
+    public int addAddedTimeMinutes(
+            int minutes
+    ) {
+        return setAddedTimeMinutes(
+                addedTimeMinutes
+                        + Math.max(
+                        0,
+                        minutes
+                )
         );
     }
 
@@ -587,10 +676,6 @@ public final class SoccerMatch {
             SoccerBallEntity ball,
             SoccerField field
     ) {
-        if (ball.isHeldByGoalkeeper()) {
-            ball.releaseFromGoalkeeper(Vec3.ZERO);
-        }
-
         Vec3 position =
                 field.getBallSpawnPosition();
 
@@ -867,17 +952,12 @@ public final class SoccerMatch {
         );
     }
 
-    /**
-     * Reproduce el silbato directamente para cada jugador
-     * conectado al servidor.
-     *
-     * Se envía desde la posición de cada jugador para que
-     * todos lo escuchen con el mismo volumen moderado,
-     * sin depender de la distancia al centro del estadio.
-     */
     private static void playWhistleForEveryone(
             MinecraftServer server,
-            DeferredHolder<net.minecraft.sounds.SoundEvent, net.minecraft.sounds.SoundEvent> sound
+            DeferredHolder<
+                    net.minecraft.sounds.SoundEvent,
+                    net.minecraft.sounds.SoundEvent
+                    > sound
     ) {
         for (ServerPlayer player
                 : server.getPlayerList().getPlayers()) {
@@ -889,7 +969,7 @@ public final class SoccerMatch {
                             player.getX(),
                             player.getY(),
                             player.getZ(),
-                            0.65F,
+                            0.52F,
                             1.0F,
                             player.getRandom().nextLong()
                     )

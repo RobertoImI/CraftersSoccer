@@ -29,6 +29,22 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
 )
 public final class RefereePenaltyCommands {
 
+    private static final com.mojang.brigadier.suggestion
+            .SuggestionProvider<CommandSourceStack>
+            FIELD_SUGGESTIONS =
+            (context, builder) -> {
+                for (SoccerField field
+                        : SoccerFieldManager.getFields(
+                        context.getSource().getServer()
+                )) {
+                    builder.suggest(
+                            field.getId()
+                    );
+                }
+
+                return builder.buildFuture();
+            };
+
     private RefereePenaltyCommands() {
     }
 
@@ -93,6 +109,9 @@ public final class RefereePenaltyCommands {
                                         "field",
                                         StringArgumentType.word()
                                 )
+                                .suggests(
+                                        FIELD_SUGGESTIONS
+                                )
                                 .executes(
                                         context ->
                                                 setPenalty(
@@ -118,6 +137,9 @@ public final class RefereePenaltyCommands {
                         Commands.argument(
                                         "field",
                                         StringArgumentType.word()
+                                )
+                                .suggests(
+                                        FIELD_SUGGESTIONS
                                 )
                                 .executes(
                                         context ->

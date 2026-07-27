@@ -136,11 +136,21 @@ public final class SoccerMatchHud {
                 0xFFFFFFFF
         );
 
-        graphics.drawCenteredString(
-                font,
+        String displayedTime =
                 formatTime(
                         ClientMatchState.getRemainingTicks()
-                ),
+                );
+
+        if (ClientMatchState.getAddedTimeMinutes() > 0) {
+            displayedTime +=
+                    "  §e+"
+                            + ClientMatchState
+                            .getAddedTimeMinutes();
+        }
+
+        graphics.drawCenteredString(
+                font,
+                displayedTime,
                 centerX,
                 y + 21,
                 0xFFEFEFEF

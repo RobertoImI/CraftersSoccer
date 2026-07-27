@@ -14,10 +14,12 @@ import net.minecraft.world.scores.Team;
 /**
  * Controla los equipos visuales del scoreboard.
  *
- * Objetivo:
- * - El nombre del jugador se ve del color del equipo.
- * - Sirve sobre la cabeza y en el tab.
- * - Ya no usamos "TU EQUIPO" en el HUD.
+ * Incluye:
+ * - equipo rojo;
+ * - equipo azul;
+ * - portero rojo;
+ * - portero azul;
+ * - árbitro.
  */
 public final class SoccerTeamDisplayManager {
 
@@ -49,22 +51,38 @@ public final class SoccerTeamDisplayManager {
             UUID blueGoalkeeper,
             UUID referee
     ) {
-        Scoreboard scoreboard = server.getScoreboard();
+        Scoreboard scoreboard =
+                server.getScoreboard();
 
         PlayerTeam redTeam =
-                getOrCreateTeam(scoreboard, RED_SCOREBOARD_TEAM);
+                getOrCreateTeam(
+                        scoreboard,
+                        RED_SCOREBOARD_TEAM
+                );
 
         PlayerTeam blueTeam =
-                getOrCreateTeam(scoreboard, BLUE_SCOREBOARD_TEAM);
+                getOrCreateTeam(
+                        scoreboard,
+                        BLUE_SCOREBOARD_TEAM
+                );
 
         PlayerTeam redGoalkeeperTeam =
-                getOrCreateTeam(scoreboard, RED_GOALKEEPER_TEAM);
+                getOrCreateTeam(
+                        scoreboard,
+                        RED_GOALKEEPER_TEAM
+                );
 
         PlayerTeam blueGoalkeeperTeam =
-                getOrCreateTeam(scoreboard, BLUE_GOALKEEPER_TEAM);
+                getOrCreateTeam(
+                        scoreboard,
+                        BLUE_GOALKEEPER_TEAM
+                );
 
         PlayerTeam refereeTeam =
-                getOrCreateTeam(scoreboard, REFEREE_SCOREBOARD_TEAM);
+                getOrCreateTeam(
+                        scoreboard,
+                        REFEREE_SCOREBOARD_TEAM
+                );
 
         configureTeam(
                 redTeam,
@@ -84,16 +102,20 @@ public final class SoccerTeamDisplayManager {
                 redGoalkeeperTeam,
                 redName + " - Portero",
                 ChatFormatting.RED,
-                Component.literal("[PT] ")
-                        .withStyle(ChatFormatting.GOLD)
+                Component.literal("[P] ")
+                        .withStyle(
+                                ChatFormatting.GOLD
+                        )
         );
 
         configureTeam(
                 blueGoalkeeperTeam,
                 blueName + " - Portero",
                 ChatFormatting.BLUE,
-                Component.literal("[PT] ")
-                        .withStyle(ChatFormatting.GOLD)
+                Component.literal("[P] ")
+                        .withStyle(
+                                ChatFormatting.GOLD
+                        )
         );
 
         configureTeam(
@@ -101,14 +123,35 @@ public final class SoccerTeamDisplayManager {
                 "Árbitro",
                 ChatFormatting.YELLOW,
                 Component.literal("[ÁRBITRO] ")
-                        .withStyle(ChatFormatting.YELLOW)
+                        .withStyle(
+                                ChatFormatting.YELLOW
+                        )
         );
 
-        clearTeamMembers(scoreboard, redTeam);
-        clearTeamMembers(scoreboard, blueTeam);
-        clearTeamMembers(scoreboard, redGoalkeeperTeam);
-        clearTeamMembers(scoreboard, blueGoalkeeperTeam);
-        clearTeamMembers(scoreboard, refereeTeam);
+        clearTeamMembers(
+                scoreboard,
+                redTeam
+        );
+
+        clearTeamMembers(
+                scoreboard,
+                blueTeam
+        );
+
+        clearTeamMembers(
+                scoreboard,
+                redGoalkeeperTeam
+        );
+
+        clearTeamMembers(
+                scoreboard,
+                blueGoalkeeperTeam
+        );
+
+        clearTeamMembers(
+                scoreboard,
+                refereeTeam
+        );
 
         addPlayers(
                 server,
@@ -130,11 +173,15 @@ public final class SoccerTeamDisplayManager {
 
         if (referee != null) {
             ServerPlayer refereePlayer =
-                    server.getPlayerList().getPlayer(referee);
+                    server.getPlayerList()
+                            .getPlayer(
+                                    referee
+                            );
 
             if (refereePlayer != null) {
                 scoreboard.addPlayerToTeam(
-                        refereePlayer.getScoreboardName(),
+                        refereePlayer
+                                .getScoreboardName(),
                         refereeTeam
                 );
             }
@@ -151,14 +198,19 @@ public final class SoccerTeamDisplayManager {
     ) {
         for (UUID playerId : players) {
             ServerPlayer player =
-                    server.getPlayerList().getPlayer(playerId);
+                    server.getPlayerList()
+                            .getPlayer(
+                                    playerId
+                            );
 
             if (player == null) {
                 continue;
             }
 
             PlayerTeam targetTeam =
-                    playerId.equals(goalkeeper)
+                    playerId.equals(
+                            goalkeeper
+                    )
                             ? goalkeeperTeam
                             : normalTeam;
 
@@ -194,58 +246,44 @@ public final class SoccerTeamDisplayManager {
         Scoreboard scoreboard =
                 server.getScoreboard();
 
-        PlayerTeam redTeam =
+        removeTeamIfPresent(
+                scoreboard,
+                RED_SCOREBOARD_TEAM
+        );
+
+        removeTeamIfPresent(
+                scoreboard,
+                BLUE_SCOREBOARD_TEAM
+        );
+
+        removeTeamIfPresent(
+                scoreboard,
+                RED_GOALKEEPER_TEAM
+        );
+
+        removeTeamIfPresent(
+                scoreboard,
+                BLUE_GOALKEEPER_TEAM
+        );
+
+        removeTeamIfPresent(
+                scoreboard,
+                REFEREE_SCOREBOARD_TEAM
+        );
+    }
+
+    private static void removeTeamIfPresent(
+            Scoreboard scoreboard,
+            String internalName
+    ) {
+        PlayerTeam team =
                 scoreboard.getPlayerTeam(
-                        RED_SCOREBOARD_TEAM
+                        internalName
                 );
 
-        PlayerTeam blueTeam =
-                scoreboard.getPlayerTeam(
-                        BLUE_SCOREBOARD_TEAM
-                );
-
-        PlayerTeam redGoalkeeperTeam =
-                scoreboard.getPlayerTeam(
-                        RED_GOALKEEPER_TEAM
-                );
-
-        PlayerTeam blueGoalkeeperTeam =
-                scoreboard.getPlayerTeam(
-                        BLUE_GOALKEEPER_TEAM
-                );
-
-        PlayerTeam refereeTeam =
-                scoreboard.getPlayerTeam(
-                        REFEREE_SCOREBOARD_TEAM
-                );
-
-        if (redTeam != null) {
+        if (team != null) {
             scoreboard.removePlayerTeam(
-                    redTeam
-            );
-        }
-
-        if (blueTeam != null) {
-            scoreboard.removePlayerTeam(
-                    blueTeam
-            );
-        }
-
-        if (redGoalkeeperTeam != null) {
-            scoreboard.removePlayerTeam(
-                    redGoalkeeperTeam
-            );
-        }
-
-        if (blueGoalkeeperTeam != null) {
-            scoreboard.removePlayerTeam(
-                    blueGoalkeeperTeam
-            );
-        }
-
-        if (refereeTeam != null) {
-            scoreboard.removePlayerTeam(
-                    refereeTeam
+                    team
             );
         }
     }
@@ -275,7 +313,9 @@ public final class SoccerTeamDisplayManager {
             ChatFormatting color,
             Component prefix
     ) {
-        team.setColor(color);
+        team.setColor(
+                color
+        );
 
         team.setDisplayName(
                 Component.literal(
@@ -283,12 +323,9 @@ public final class SoccerTeamDisplayManager {
                 )
         );
 
-        /*
-         * No mostramos prefijo extra.
-         * Lo importante es que el nombre del jugador
-         * tome el color del equipo.
-         */
-        team.setPlayerPrefix(prefix);
+        team.setPlayerPrefix(
+                prefix
+        );
 
         team.setPlayerSuffix(
                 Component.empty()
@@ -306,7 +343,9 @@ public final class SoccerTeamDisplayManager {
                 Team.CollisionRule.ALWAYS
         );
 
-        team.setAllowFriendlyFire(true);
+        team.setAllowFriendlyFire(
+                true
+        );
     }
 
     private static void clearTeamMembers(
@@ -314,7 +353,9 @@ public final class SoccerTeamDisplayManager {
             PlayerTeam team
     ) {
         for (String member
-                : Set.copyOf(team.getPlayers())) {
+                : Set.copyOf(
+                        team.getPlayers()
+                )) {
 
             scoreboard.removePlayerFromTeam(
                     member,

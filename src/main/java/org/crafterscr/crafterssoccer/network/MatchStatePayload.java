@@ -20,6 +20,7 @@ public record MatchStatePayload(
         int redScore,
         int blueScore,
         int remainingTicks,
+        int addedTimeMinutes,
         String state,
         String message,
         boolean participant,
@@ -87,6 +88,11 @@ public record MatchStatePayload(
                 payload.remainingTicks()
         );
 
+        ByteBufCodecs.VAR_INT.encode(
+                buffer,
+                payload.addedTimeMinutes()
+        );
+
         ByteBufCodecs.STRING_UTF8.encode(
                 buffer,
                 payload.state()
@@ -144,6 +150,7 @@ public record MatchStatePayload(
                 ByteBufCodecs.VAR_INT.decode(buffer),
                 ByteBufCodecs.VAR_INT.decode(buffer),
                 ByteBufCodecs.VAR_INT.decode(buffer),
+                ByteBufCodecs.VAR_INT.decode(buffer),
                 ByteBufCodecs.STRING_UTF8.decode(buffer),
                 ByteBufCodecs.STRING_UTF8.decode(buffer),
                 ByteBufCodecs.BOOL.decode(buffer),
@@ -162,6 +169,7 @@ public record MatchStatePayload(
                 "",
                 "",
                 "",
+                0,
                 0,
                 0,
                 0,

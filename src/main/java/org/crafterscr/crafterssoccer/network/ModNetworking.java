@@ -17,7 +17,7 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
  */
 public final class ModNetworking {
 
-    private static final String NETWORK_VERSION = "9";
+    private static final String NETWORK_VERSION = "11";
 
     private ModNetworking() {
     }
@@ -66,6 +66,12 @@ public final class ModNetworking {
                 ModNetworking::handleSlideAction
         );
 
+        registrar.playToServer(
+                BroadcastCameraTogglePayload.TYPE,
+                BroadcastCameraTogglePayload.STREAM_CODEC,
+                ModNetworking::handleBroadcastCameraToggle
+        );
+
         registrar.playToClient(
                 KnockdownStatePayload.TYPE,
                 KnockdownStatePayload.STREAM_CODEC,
@@ -88,6 +94,12 @@ public final class ModNetworking {
                 MatchStatePayload.TYPE,
                 MatchStatePayload.STREAM_CODEC,
                 ModNetworking::handleMatchState
+        );
+
+        registrar.playToClient(
+                BroadcastCameraStatePayload.TYPE,
+                BroadcastCameraStatePayload.STREAM_CODEC,
+                ModNetworking::handleBroadcastCameraState
         );
     }
 
@@ -204,6 +216,24 @@ public final class ModNetworking {
         );
     }
 
+    private static void handleBroadcastCameraToggle(
+            BroadcastCameraTogglePayload payload,
+            IPayloadContext context
+    ) {
+        if (!(context.player()
+                instanceof ServerPlayer player)) {
+            return;
+        }
+
+        context.enqueueWork(
+                () -> org.crafterscr.crafterssoccer.spectator
+                        .SpectatorBroadcastManager.toggleViewer(
+                                player.getServer(),
+                                player
+                        )
+        );
+    }
+
     private static void handleSlideState(
             SlideStatePayload payload,
             IPayloadContext context
@@ -250,6 +280,18 @@ public final class ModNetworking {
                 () -> ClientMatchState.apply(
                         payload
                 )
+        );
+    }
+
+    private static void handleBroadcastCameraState(
+            BroadcastCameraStatePayload payload,
+            IPayloadContext context
+    ) {
+        context.enqueueWork(
+                () -> org.crafterscr.crafterssoccer.client
+                        .ClientBroadcastCameraState.apply(
+                                payload
+                        )
         );
     }
 }

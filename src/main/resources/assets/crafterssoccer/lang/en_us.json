@@ -1,19 +1,14 @@
 {
   "entity.crafterssoccer.soccer_ball": "Soccer Ball",
-
   "subtitles.crafterssoccer.whistle_start": "Starting whistle blows",
   "subtitles.crafterssoccer.whistle_end": "Final whistle blows",
-
   "key.crafterssoccer.referee_whistle": "Referee Whistle",
-  "key.categories.crafterssoccer": "CraftersSoccer",
-
+  "key.categories.crafterssoccer": "Crafters Soccer",
   "item.crafterssoccer.yellow_card": "Yellow Card",
   "item.crafterssoccer.red_card": "Red Card",
-
   "key.crafterssoccer.stand_up": "Stand Up",
   "crafterssoccer.animation.player_knockdown": "Player Knockdown",
   "crafterssoccer.animation.player_knockdown.description": "Fall caused by accumulated player impacts",
-
   "key.crafterssoccer.slide": "Slide tackle",
-  "key.categories.crafterssoccer": "Crafters Soccer"
+  "key.crafterssoccer.broadcast_camera": "Enter/exit TV camera"
 }

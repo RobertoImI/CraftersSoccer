@@ -452,6 +452,66 @@ public final class SoccerMatchManager {
         return activeMatch;
     }
 
+    public static boolean adjustScore(
+            MinecraftServer server,
+            SoccerTeamSide side,
+            int amount
+    ) {
+        ensureLoaded(server);
+
+        if (activeMatch == null) {
+            return false;
+        }
+
+        activeMatch.adjustScore(
+                side,
+                amount
+        );
+
+        synchronize(server);
+        return true;
+    }
+
+    public static boolean setAddedTimeMinutes(
+            MinecraftServer server,
+            int minutes
+    ) {
+        ensureLoaded(server);
+
+        if (activeMatch == null
+                || activeMatch.getState()
+                == SoccerMatchState.FINISHED) {
+            return false;
+        }
+
+        activeMatch.setAddedTimeMinutes(
+                minutes
+        );
+
+        synchronize(server);
+        return true;
+    }
+
+    public static boolean addAddedTimeMinutes(
+            MinecraftServer server,
+            int minutes
+    ) {
+        ensureLoaded(server);
+
+        if (activeMatch == null
+                || activeMatch.getState()
+                == SoccerMatchState.FINISHED) {
+            return false;
+        }
+
+        activeMatch.addAddedTimeMinutes(
+                minutes
+        );
+
+        synchronize(server);
+        return true;
+    }
+
     public static boolean startMatch(
             MinecraftServer server,
             SoccerField field,
@@ -669,6 +729,7 @@ public final class SoccerMatchManager {
                 match.getRedScore(),
                 match.getBlueScore(),
                 match.getRemainingTicks(),
+                match.getAddedTimeMinutes(),
                 match.getState().name(),
                 match.getMessage(),
                 playerSide != null,

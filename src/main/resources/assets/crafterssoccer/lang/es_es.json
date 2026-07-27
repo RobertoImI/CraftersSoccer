@@ -1,19 +1,14 @@
 {
   "entity.crafterssoccer.soccer_ball": "Balón de fútbol",
-
   "subtitles.crafterssoccer.whistle_start": "Suena el silbato de inicio",
   "subtitles.crafterssoccer.whistle_end": "Suena el silbato final",
-
   "key.crafterssoccer.referee_whistle": "Silbato del árbitro",
-  "key.categories.crafterssoccer": "CraftersSoccer",
-
+  "key.categories.crafterssoccer": "Crafters Soccer",
   "item.crafterssoccer.yellow_card": "Tarjeta amarilla",
   "item.crafterssoccer.red_card": "Tarjeta roja",
-
   "key.crafterssoccer.stand_up": "Levantarse",
   "crafterssoccer.animation.player_knockdown": "Derribo de jugador",
   "crafterssoccer.animation.player_knockdown.description": "Caída por acumulación de impactos entre jugadores",
-
   "key.crafterssoccer.slide": "Barrido",
-  "key.categories.crafterssoccer": "Crafters Soccer"
+  "key.crafterssoccer.broadcast_camera": "Entrar/salir de cámara TV"
 }

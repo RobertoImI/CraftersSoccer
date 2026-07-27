@@ -166,7 +166,10 @@ public final class PlayerImpactManager {
         );
 
         if (newImpact >= MAX_IMPACT) {
-            knockDown(victim);
+            knockDown(
+                    victim,
+                    attacker
+            );
             return true;
         }
 
@@ -314,7 +317,8 @@ public final class PlayerImpactManager {
     }
 
     private static void knockDown(
-            ServerPlayer player
+            ServerPlayer player,
+            ServerPlayer attacker
     ) {
         if (isReferee(player)) {
             IMPACT.remove(
@@ -358,6 +362,52 @@ public final class PlayerImpactManager {
         synchronizeRecovery(
                 player,
                 0
+        );
+
+        notifyRefereeOfKnockdown(
+                player,
+                attacker
+        );
+    }
+
+    private static void notifyRefereeOfKnockdown(
+            ServerPlayer victim,
+            ServerPlayer attacker
+    ) {
+        MinecraftServer server =
+                victim.getServer();
+
+        if (server == null
+                || attacker == null) {
+            return;
+        }
+
+        UUID refereeId =
+                SoccerMatchManager.getReferee(
+                        server
+                );
+
+        if (refereeId == null) {
+            return;
+        }
+
+        ServerPlayer referee =
+                server.getPlayerList().getPlayer(
+                        refereeId
+                );
+
+        if (referee == null) {
+            return;
+        }
+
+        referee.displayClientMessage(
+                Component.literal(
+                        "§e⚠ DERRIBO: §f"
+                                + attacker.getName().getString()
+                                + " §7derribó a §f"
+                                + victim.getName().getString()
+                ),
+                false
         );
     }
 

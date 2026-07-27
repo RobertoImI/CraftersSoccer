@@ -48,6 +48,16 @@ public final class SlideManager {
      * con un impulso adicional durante toda la acción.
      */
     private static final double SPRINT_SLIDE_MULTIPLIER = 1.28D;
+
+    /**
+     * Conserva parte de la velocidad que llevaba el jugador antes
+     * de pulsar el barrido. El impulso se consume durante los primeros
+     * ticks, evitando la sensación de freno brusco en primera persona.
+     */
+    private static final double MAX_INITIAL_MOMENTUM_BONUS = 0.14D;
+    private static final double MIN_SPRINT_MOMENTUM_BONUS = 0.09D;
+    private static final int MOMENTUM_DECAY_TICKS = 16;
+
     private static final double PLAYER_HIT_INFLATE = 0.32D;
     private static final double BALL_SEARCH_RADIUS = 1.85D;
     private static final int BALL_CONTROL_TICKS = 30;
@@ -134,11 +144,39 @@ public final class SlideManager {
         direction =
                 direction.normalize();
 
+        Vec3 incomingVelocity =
+                player.getDeltaMovement()
+                        .multiply(
+                                1.0D,
+                                0.0D,
+                                1.0D
+                        );
+
+        double initialMomentumBonus =
+                Math.min(
+                        MAX_INITIAL_MOMENTUM_BONUS,
+                        Math.sqrt(
+                                incomingVelocity.x
+                                        * incomingVelocity.x
+                                        + incomingVelocity.z
+                                        * incomingVelocity.z
+                        )
+                );
+
+        if (player.isSprinting()) {
+            initialMomentumBonus =
+                    Math.max(
+                            MIN_SPRINT_MOMENTUM_BONUS,
+                            initialMomentumBonus
+                    );
+        }
+
         ACTIVE.put(
                 player.getUUID(),
                 new SlideData(
                         direction,
-                        player.isSprinting()
+                        player.isSprinting(),
+                        initialMomentumBonus
                 )
         );
 
@@ -339,6 +377,17 @@ public final class SlideManager {
 
         if (data.startedSprinting) {
             speed *= SPRINT_SLIDE_MULTIPLIER;
+        }
+
+        if (data.ticks < MOMENTUM_DECAY_TICKS) {
+            double remainingMomentum =
+                    1.0D
+                            - data.ticks
+                            / (double) MOMENTUM_DECAY_TICKS;
+
+            speed +=
+                    data.initialMomentumBonus
+                            * remainingMomentum;
         }
 
         return speed;
@@ -645,16 +694,21 @@ public final class SlideManager {
 
         private final boolean startedSprinting;
 
+        private final double initialMomentumBonus;
+
         private int ticks;
 
         private boolean hitPlayer;
 
         private SlideData(
                 Vec3 direction,
-                boolean startedSprinting
+                boolean startedSprinting,
+                double initialMomentumBonus
         ) {
             this.direction = direction;
             this.startedSprinting = startedSprinting;
+            this.initialMomentumBonus =
+                    initialMomentumBonus;
         }
     }
 }

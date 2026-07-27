@@ -3,7 +3,7 @@ package org.crafterscr.crafterssoccer.client;
 import org.crafterscr.crafterssoccer.network.MatchStatePayload;
 
 /**
- * Estado local utilizado por el HUD.
+ * Estado local utilizado por el HUD y las mecánicas del cliente.
  */
 public final class ClientMatchState {
 
@@ -22,10 +22,15 @@ public final class ClientMatchState {
     private static int redScore;
     private static int blueScore;
     private static int remainingTicks;
+    private static int addedTimeMinutes;
 
     private static boolean participant;
     private static String playerTeamSide = "";
 
+    /*
+     * Estado del portero. Estas variables deben conservarse porque
+     * ClientSoccerState y el HUD del portero las consultan.
+     */
     private static boolean goalkeeper;
     private static boolean goalkeeperInArea;
     private static boolean goalkeeperAvailable;
@@ -62,6 +67,9 @@ public final class ClientMatchState {
 
         remainingTicks =
                 payload.remainingTicks();
+
+        addedTimeMinutes =
+                payload.addedTimeMinutes();
 
         state =
                 payload.state();
@@ -107,6 +115,7 @@ public final class ClientMatchState {
         redScore = 0;
         blueScore = 0;
         remainingTicks = 0;
+        addedTimeMinutes = 0;
 
         participant = false;
         playerTeamSide = "";
@@ -152,6 +161,10 @@ public final class ClientMatchState {
 
     public static int getRemainingTicks() {
         return remainingTicks;
+    }
+
+    public static int getAddedTimeMinutes() {
+        return addedTimeMinutes;
     }
 
     public static boolean isParticipant() {

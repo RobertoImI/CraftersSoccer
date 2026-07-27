@@ -41,6 +41,11 @@ public final class SoccerServerEvents {
                 .SlideManager.tick(
                         event.getServer()
                 );
+
+        org.crafterscr.crafterssoccer.spectator
+                .SpectatorBroadcastManager.tick(
+                        event.getServer()
+                );
     }
 
     /**
@@ -72,6 +77,28 @@ public final class SoccerServerEvents {
 
         org.crafterscr.crafterssoccer.knockdown
                 .PlayerImpactManager.handleLogin(
+                        player
+                );
+
+        org.crafterscr.crafterssoccer.spectator
+                .SpectatorBroadcastManager.synchronizePlayer(
+                        player.getServer(),
+                        player
+                );
+    }
+
+    @SubscribeEvent
+    public static void onPlayerLogout(
+            PlayerEvent.PlayerLoggedOutEvent event
+    ) {
+        if (!(event.getEntity()
+                instanceof ServerPlayer player)) {
+            return;
+        }
+
+        org.crafterscr.crafterssoccer.spectator
+                .SpectatorBroadcastManager.handleLogout(
+                        player.getServer(),
                         player
                 );
     }

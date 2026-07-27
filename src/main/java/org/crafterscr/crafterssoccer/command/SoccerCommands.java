@@ -12,6 +12,7 @@ import org.crafterscr.crafterssoccer.match.SoccerMatch;
 import org.crafterscr.crafterssoccer.match.SoccerMatchManager;
 import org.crafterscr.crafterssoccer.match.SoccerTeamSide;
 import org.crafterscr.crafterssoccer.registry.ModEntities;
+import org.crafterscr.crafterssoccer.spectator.SpectatorBroadcastManager;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
@@ -63,17 +64,87 @@ public final class SoccerCommands {
         CommandDispatcher<CommandSourceStack> dispatcher =
                 event.getDispatcher();
 
+        /*
+         * El nodo raíz queda visible, pero cada bloque valida
+         * su propio nivel de acceso:
+         *
+         * - administración completa: OP nivel 2;
+         * - gol y reposición: árbitro asignado u OP.
+         */
         dispatcher.register(
                 Commands.literal("soccer")
-                        .requires(
-                                source ->
-                                        source.hasPermission(2)
+                        .then(
+                                createBallCommands()
+                                        .requires(
+                                                SoccerCommands::isAdminSource
+                                        )
                         )
-                        .then(createBallCommands())
-                        .then(createFieldCommands())
-                        .then(createTeamCommands())
-                        .then(createRefereeCommands())
-                        .then(createMatchCommands())
+                        .then(
+                                createFieldCommands()
+                                        .requires(
+                                                SoccerCommands::isAdminSource
+                                        )
+                        )
+                        .then(
+                                createTeamCommands()
+                                        .requires(
+                                                SoccerCommands::isAdminSource
+                                        )
+                        )
+                        .then(
+                                createRefereeCommands()
+                                        .requires(
+                                                SoccerCommands::isAdminSource
+                                        )
+                        )
+                        .then(
+                                createMatchCommands()
+                                        .requires(
+                                                SoccerCommands::isAdminSource
+                                        )
+                        )
+                        .then(
+                                createGoalControlCommands()
+                                        .requires(
+                                                SoccerCommands::canControlMatch
+                                        )
+                        )
+                        .then(
+                                createAddedTimeCommands()
+                                        .requires(
+                                                SoccerCommands::canControlMatch
+                                        )
+                        )
+                        .then(
+                                createBroadcastCameraCommands()
+                                        .requires(
+                                                SoccerCommands::isAdminSource
+                                        )
+                        )
+        );
+    }
+
+    private static boolean isAdminSource(
+            CommandSourceStack source
+    ) {
+        return source.hasPermission(2);
+    }
+
+    private static boolean canControlMatch(
+            CommandSourceStack source
+    ) {
+        if (source.hasPermission(2)) {
+            return true;
+        }
+
+        if (!(source.getEntity()
+                instanceof ServerPlayer player)) {
+            return false;
+        }
+
+        return SoccerMatchManager.isReferee(
+                source.getServer(),
+                player.getUUID()
         );
     }
 
@@ -889,6 +960,213 @@ public final class SoccerCommands {
                 );
     }
 
+
+    private static com.mojang.brigadier.builder
+            .LiteralArgumentBuilder<CommandSourceStack>
+    createGoalControlCommands() {
+        return Commands.literal("goal")
+                .then(
+                        createGoalActionCommands(
+                                "add",
+                                1
+                        )
+                )
+                .then(
+                        createGoalActionCommands(
+                                "remove",
+                                -1
+                        )
+                )
+                .then(
+                        Commands.literal("status")
+                                .executes(
+                                        context ->
+                                                showManualScoreStatus(
+                                                        context.getSource()
+                                                )
+                                )
+                );
+    }
+
+    private static com.mojang.brigadier.builder
+            .LiteralArgumentBuilder<CommandSourceStack>
+    createGoalActionCommands(
+            String actionName,
+            int direction
+    ) {
+        return Commands.literal(actionName)
+                .then(
+                        createGoalTeamCommand(
+                                "red",
+                                SoccerTeamSide.RED,
+                                direction
+                        )
+                )
+                .then(
+                        createGoalTeamCommand(
+                                "blue",
+                                SoccerTeamSide.BLUE,
+                                direction
+                        )
+                );
+    }
+
+    private static com.mojang.brigadier.builder
+            .LiteralArgumentBuilder<CommandSourceStack>
+    createGoalTeamCommand(
+            String commandName,
+            SoccerTeamSide side,
+            int direction
+    ) {
+        return Commands.literal(commandName)
+                .executes(
+                        context ->
+                                adjustGoal(
+                                        context.getSource(),
+                                        side,
+                                        direction
+                                )
+                )
+                .then(
+                        Commands.argument(
+                                        "amount",
+                                        IntegerArgumentType.integer(
+                                                1,
+                                                99
+                                        )
+                                )
+                                .executes(
+                                        context ->
+                                                adjustGoal(
+                                                        context.getSource(),
+                                                        side,
+                                                        direction
+                                                                * IntegerArgumentType
+                                                                .getInteger(
+                                                                        context,
+                                                                        "amount"
+                                                                )
+                                                )
+                                )
+                );
+    }
+
+    private static com.mojang.brigadier.builder
+            .LiteralArgumentBuilder<CommandSourceStack>
+    createAddedTimeCommands() {
+        return Commands.literal("addedtime")
+                /*
+                 * /soccer addedtime 5
+                 * Establece el total de reposición en +5.
+                 */
+                .then(
+                        Commands.argument(
+                                        "minutes",
+                                        IntegerArgumentType.integer(
+                                                0,
+                                                120
+                                        )
+                                )
+                                .executes(
+                                        context ->
+                                                setAddedTime(
+                                                        context.getSource(),
+                                                        IntegerArgumentType
+                                                                .getInteger(
+                                                                        context,
+                                                                        "minutes"
+                                                                )
+                                                )
+                                )
+                )
+                .then(
+                        Commands.literal("add")
+                                .then(
+                                        Commands.argument(
+                                                        "minutes",
+                                                        IntegerArgumentType
+                                                                .integer(
+                                                                        1,
+                                                                        120
+                                                                )
+                                                )
+                                                .executes(
+                                                        context ->
+                                                                addAddedTime(
+                                                                        context.getSource(),
+                                                                        IntegerArgumentType
+                                                                                .getInteger(
+                                                                                        context,
+                                                                                        "minutes"
+                                                                                )
+                                                                )
+                                                )
+                                )
+                )
+                .then(
+                        Commands.literal("clear")
+                                .executes(
+                                        context ->
+                                                setAddedTime(
+                                                        context.getSource(),
+                                                        0
+                                                )
+                                )
+                )
+                .then(
+                        Commands.literal("status")
+                                .executes(
+                                        context ->
+                                                showAddedTimeStatus(
+                                                        context.getSource()
+                                                )
+                                )
+                );
+    }
+
+    private static com.mojang.brigadier.builder
+            .LiteralArgumentBuilder<CommandSourceStack>
+    createBroadcastCameraCommands() {
+        return Commands.literal("camera")
+                .then(
+                        Commands.literal("set")
+                                .then(
+                                        Commands.argument(
+                                                        "player",
+                                                        EntityArgument.player()
+                                                )
+                                                .executes(
+                                                        context ->
+                                                                setBroadcastCamera(
+                                                                        context.getSource(),
+                                                                        EntityArgument.getPlayer(
+                                                                                context,
+                                                                                "player"
+                                                                        )
+                                                                )
+                                                )
+                                )
+                )
+                .then(
+                        Commands.literal("clear")
+                                .executes(
+                                        context ->
+                                                clearBroadcastCamera(
+                                                        context.getSource()
+                                                )
+                                )
+                )
+                .then(
+                        Commands.literal("status")
+                                .executes(
+                                        context ->
+                                                showBroadcastCameraStatus(
+                                                        context.getSource()
+                                                )
+                                )
+                );
+    }
+
     private static com.mojang.brigadier.builder
             .RequiredArgumentBuilder<
             CommandSourceStack,
@@ -1065,6 +1343,18 @@ public final class SoccerCommands {
                 source,
                 "Balón",
                 field.getBallSpawn()
+        );
+
+        sendPointStatus(
+                source,
+                "Punto de castigo rojo",
+                field.getRedPenaltyPosition()
+        );
+
+        sendPointStatus(
+                source,
+                "Punto de castigo azul",
+                field.getBluePenaltyPosition()
         );
 
         source.sendSuccess(
@@ -2071,6 +2361,292 @@ public final class SoccerCommands {
         }
     }
 
+
+    private static int adjustGoal(
+            CommandSourceStack source,
+            SoccerTeamSide side,
+            int amount
+    ) {
+        SoccerMatch match =
+                SoccerMatchManager.getActiveMatch(
+                        source.getServer()
+                );
+
+        if (match == null) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cNo hay un partido activo."
+                    )
+            );
+            return 0;
+        }
+
+        SoccerMatchManager.adjustScore(
+                source.getServer(),
+                side,
+                amount
+        );
+
+        int currentScore =
+                side == SoccerTeamSide.RED
+                        ? match.getRedScore()
+                        : match.getBlueScore();
+
+        String operation =
+                amount >= 0
+                        ? "agregado"
+                        : "anulado";
+
+        int absoluteAmount =
+                Math.abs(amount);
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§aGol "
+                                + operation
+                                + " para §f"
+                                + SoccerMatchManager.getTeamName(
+                                source.getServer(),
+                                side
+                        )
+                                + "§a. Cambio: §f"
+                                + absoluteAmount
+                                + "§a. Marcador actual: §c"
+                                + match.getRedScore()
+                                + " §f- §9"
+                                + match.getBlueScore()
+                                + " §7(Puntaje del equipo: "
+                                + currentScore
+                                + ")"
+                ),
+                true
+        );
+
+        return 1;
+    }
+
+    private static int showManualScoreStatus(
+            CommandSourceStack source
+    ) {
+        SoccerMatch match =
+                SoccerMatchManager.getActiveMatch(
+                        source.getServer()
+                );
+
+        if (match == null) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cNo hay un partido activo."
+                    )
+            );
+            return 0;
+        }
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§7Marcador actual: §c"
+                                + match.getRedScore()
+                                + " §f- §9"
+                                + match.getBlueScore()
+                ),
+                false
+        );
+
+        return 1;
+    }
+
+    private static int setAddedTime(
+            CommandSourceStack source,
+            int minutes
+    ) {
+        if (!SoccerMatchManager.setAddedTimeMinutes(
+                source.getServer(),
+                minutes
+        )) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cNo hay un partido activo que acepte reposición."
+                    )
+            );
+            return 0;
+        }
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        minutes <= 0
+                                ? "§eTiempo de reposición eliminado."
+                                : "§aTiempo de reposición establecido: §e+"
+                                + minutes
+                                + " minutos."
+                ),
+                true
+        );
+
+        return 1;
+    }
+
+    private static int addAddedTime(
+            CommandSourceStack source,
+            int minutes
+    ) {
+        if (!SoccerMatchManager.addAddedTimeMinutes(
+                source.getServer(),
+                minutes
+        )) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cNo hay un partido activo que acepte reposición."
+                    )
+            );
+            return 0;
+        }
+
+        SoccerMatch match =
+                SoccerMatchManager.getActiveMatch(
+                        source.getServer()
+                );
+
+        int total =
+                match == null
+                        ? 0
+                        : match.getAddedTimeMinutes();
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§aSe agregaron §e+"
+                                + minutes
+                                + " minutos§a. Reposición total: §e+"
+                                + total
+                ),
+                true
+        );
+
+        return 1;
+    }
+
+    private static int showAddedTimeStatus(
+            CommandSourceStack source
+    ) {
+        SoccerMatch match =
+                SoccerMatchManager.getActiveMatch(
+                        source.getServer()
+                );
+
+        if (match == null) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cNo hay un partido activo."
+                    )
+            );
+            return 0;
+        }
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§7Reposición actual: §e+"
+                                + match.getAddedTimeMinutes()
+                                + " minutos"
+                ),
+                false
+        );
+
+        return 1;
+    }
+
+    private static int setBroadcastCamera(
+            CommandSourceStack source,
+            ServerPlayer operator
+    ) {
+        if (SoccerMatchManager.getPlayerTeam(
+                source.getServer(),
+                operator.getUUID()
+        ) != null) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cLa cámara asignada no puede ser un jugador "
+                                    + "de uno de los equipos."
+                    )
+            );
+            return 0;
+        }
+
+        if (!SpectatorBroadcastManager.setCameraOperator(
+                source.getServer(),
+                operator
+        )) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cNo se pudo asignar la cámara."
+                    )
+            );
+            return 0;
+        }
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§aCámara TV asignada a §f"
+                                + operator.getName().getString()
+                                + "§a. Los espectadores pueden pulsar §fB§a."
+                ),
+                true
+        );
+
+        return 1;
+    }
+
+    private static int clearBroadcastCamera(
+            CommandSourceStack source
+    ) {
+        if (!SpectatorBroadcastManager.clearCameraOperator(
+                source.getServer()
+        )) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cNo hay una cámara TV asignada."
+                    )
+            );
+            return 0;
+        }
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§eCámara TV eliminada."
+                ),
+                true
+        );
+
+        return 1;
+    }
+
+    private static int showBroadcastCameraStatus(
+            CommandSourceStack source
+    ) {
+        ServerPlayer operator =
+                SpectatorBroadcastManager.getCameraOperator(
+                        source.getServer()
+                );
+
+        if (operator == null) {
+            source.sendSuccess(
+                    () -> Component.literal(
+                            "§7No hay una cámara TV asignada."
+                    ),
+                    false
+            );
+            return 0;
+        }
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§aCámara TV activa: §f"
+                                + operator.getName().getString()
+                ),
+                false
+        );
+
+        return 1;
+    }
+
     private static int startMatch(
             CommandSourceStack source,
             String fieldId,
@@ -2245,6 +2821,10 @@ public final class SoccerCommands {
                                 minutes,
                                 seconds
                         )
+                                + (match.getAddedTimeMinutes() > 0
+                                ? "\n§7Reposición: §e+"
+                                + match.getAddedTimeMinutes()
+                                : "")
                 ),
                 false
         );

@@ -76,6 +76,10 @@ public final class ClientModEvents {
             event.register(
                     SlideKeyMappings.SLIDE
             );
+
+            event.register(
+                    BroadcastCameraKeyMappings.TOGGLE_BROADCAST
+            );
         }
 
         @SubscribeEvent
@@ -136,6 +140,7 @@ public final class ClientModEvents {
             RefereeKeyMappings.clientTick();
             KnockdownKeyMappings.clientTick();
             SlideKeyMappings.clientTick();
+            BroadcastCameraKeyMappings.clientTick();
 
             ClientKnockdownState.clientTick(
                     minecraft
@@ -153,6 +158,10 @@ public final class ClientModEvents {
                     minecraft
             );
 
+            ClientBroadcastCameraState.clientTick(
+                    minecraft
+            );
+
             if (minecraft.player == null
                     || minecraft.level == null) {
 
@@ -161,6 +170,7 @@ public final class ClientModEvents {
                 ClientKnockdownState.reset();
                 ClientRecoveryState.reset();
                 ClientSlideState.reset();
+                ClientBroadcastCameraState.reset();
             }
         }
     }
