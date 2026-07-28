@@ -67,9 +67,6 @@ repositories {
 }
 
 dependencies {
-    testImplementation platform("org.junit:junit-bom:5.11.4")
-    testImplementation "org.junit.jupiter:junit-jupiter"
-
     /*
      * PlayerAnimator reproduce las animaciones JSON.
      * Se mantiene como dependencia externa requerida.
@@ -131,8 +128,4 @@ publishing {
             url = layout.buildDirectory.dir('repo')
         }
     }
-}
-
-tasks.named('test') {
-    useJUnitPlatform()
 }
