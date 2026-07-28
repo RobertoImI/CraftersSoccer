@@ -14,7 +14,6 @@ import org.crafterscr.crafterssoccer.match.SoccerTeamSide;
 import org.crafterscr.crafterssoccer.registry.ModEntities;
 import org.crafterscr.crafterssoccer.spectator.SpectatorBroadcastManager;
 
-import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
@@ -61,92 +60,24 @@ public final class SoccerCommands {
     public static void register(
             RegisterCommandsEvent event
     ) {
-        CommandDispatcher<CommandSourceStack> dispatcher =
-                event.getDispatcher();
+        var root = Commands.literal("soccer");
 
-        /*
-         * El nodo raíz queda visible, pero cada bloque valida
-         * su propio nivel de acceso:
-         *
-         * - administración completa: OP nivel 2;
-         * - gol y reposición: árbitro asignado u OP.
-         */
-        dispatcher.register(
-                Commands.literal("soccer")
-                        .then(
-                                createBallCommands()
-                                        .requires(
-                                                SoccerCommands::isAdminSource
-                                        )
-                        )
-                        .then(
-                                createFieldCommands()
-                                        .requires(
-                                                SoccerCommands::isAdminSource
-                                        )
-                        )
-                        .then(
-                                createTeamCommands()
-                                        .requires(
-                                                SoccerCommands::isAdminSource
-                                        )
-                        )
-                        .then(
-                                createRefereeCommands()
-                                        .requires(
-                                                SoccerCommands::isAdminSource
-                                        )
-                        )
-                        .then(
-                                createMatchCommands()
-                                        .requires(
-                                                SoccerCommands::isAdminSource
-                                        )
-                        )
-                        .then(
-                                createGoalControlCommands()
-                                        .requires(
-                                                SoccerCommands::canControlMatch
-                                        )
-                        )
-                        .then(
-                                createAddedTimeCommands()
-                                        .requires(
-                                                SoccerCommands::canControlMatch
-                                        )
-                        )
-                        .then(
-                                createBroadcastCameraCommands()
-                                        .requires(
-                                                SoccerCommands::isAdminSource
-                                        )
-                        )
+        root.then(
+                createBallCommands()
+                        .requires(CommandAccess::isAdministrator)
         );
-    }
-
-    private static boolean isAdminSource(
-            CommandSourceStack source
-    ) {
-        return source.hasPermission(2);
-    }
-
-    private static boolean canControlMatch(
-            CommandSourceStack source
-    ) {
-        if (source.hasPermission(2)) {
-            return true;
-        }
-
-        if (!(source.getEntity()
-                instanceof ServerPlayer player)) {
-            return false;
-        }
-
-        return SoccerMatchManager.isReferee(
-                source.getServer(),
-                player.getUUID()
+        FieldCommands.register(root);
+        TeamCommands.register(root);
+        root.then(
+                createRefereeCommands()
+                        .requires(CommandAccess::isAdministrator)
         );
+        MatchCommands.register(root);
+        BroadcastCommands.register(root);
+
+        event.getDispatcher().register(root);
     }
+
 
     private static com.mojang.brigadier.builder
             .LiteralArgumentBuilder<CommandSourceStack>
@@ -175,7 +106,7 @@ public final class SoccerCommands {
                 );
     }
 
-    private static com.mojang.brigadier.builder
+    static com.mojang.brigadier.builder
             .LiteralArgumentBuilder<CommandSourceStack>
     createFieldCommands() {
 
@@ -388,22 +319,6 @@ public final class SoccerCommands {
                 )
 
                 .then(
-                        Commands.literal("goalkeeperarea")
-                                .then(
-                                        createGoalkeeperAreaCommands(
-                                                "red",
-                                                SoccerTeamSide.RED
-                                        )
-                                )
-                                .then(
-                                        createGoalkeeperAreaCommands(
-                                                "blue",
-                                                SoccerTeamSide.BLUE
-                                        )
-                                )
-                )
-
-                .then(
                         Commands.literal("clear")
                                 .then(
                                         fieldArgument()
@@ -521,7 +436,7 @@ public final class SoccerCommands {
                 );
     }
 
-    private static com.mojang.brigadier.builder
+    static com.mojang.brigadier.builder
             .LiteralArgumentBuilder<CommandSourceStack>
     createGoalkeeperAreaCommands(
             String commandName,
@@ -574,7 +489,7 @@ public final class SoccerCommands {
                 );
     }
 
-    private static com.mojang.brigadier.builder
+    static com.mojang.brigadier.builder
             .LiteralArgumentBuilder<CommandSourceStack>
     createTeamCommands() {
 
@@ -878,7 +793,7 @@ public final class SoccerCommands {
                 );
     }
 
-    private static com.mojang.brigadier.builder
+    static com.mojang.brigadier.builder
             .LiteralArgumentBuilder<CommandSourceStack>
     createMatchCommands() {
 
@@ -961,7 +876,7 @@ public final class SoccerCommands {
     }
 
 
-    private static com.mojang.brigadier.builder
+    static com.mojang.brigadier.builder
             .LiteralArgumentBuilder<CommandSourceStack>
     createGoalControlCommands() {
         return Commands.literal("goal")
@@ -1051,7 +966,7 @@ public final class SoccerCommands {
                 );
     }
 
-    private static com.mojang.brigadier.builder
+    static com.mojang.brigadier.builder
             .LiteralArgumentBuilder<CommandSourceStack>
     createAddedTimeCommands() {
         return Commands.literal("addedtime")
@@ -1124,7 +1039,7 @@ public final class SoccerCommands {
                 );
     }
 
-    private static com.mojang.brigadier.builder
+    static com.mojang.brigadier.builder
             .LiteralArgumentBuilder<CommandSourceStack>
     createBroadcastCameraCommands() {
         return Commands.literal("camera")

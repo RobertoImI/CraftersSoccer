@@ -1,6 +1,5 @@
 package org.crafterscr.crafterssoccer.match;
 
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -218,10 +217,7 @@ public final class SoccerMatch {
         stateTicks--;
 
         int seconds =
-                Math.max(
-                        1,
-                        (stateTicks + 19) / 20
-                );
+                MatchClock.countdownSeconds(stateTicks);
 
         message =
                 "COMIENZA EN " + seconds;
@@ -258,9 +254,7 @@ public final class SoccerMatch {
             SoccerField field,
             SoccerBallEntity ball
     ) {
-        if (remainingTicks > 0) {
-            remainingTicks--;
-        }
+        remainingTicks = MatchClock.tickRemaining(remainingTicks);
 
         Vec3 currentCenter =
                 getBallCenter(ball);
@@ -828,23 +822,7 @@ public final class SoccerMatch {
             Vec3 previous,
             Vec3 current
     ) {
-        if (goal == null
-                || previous == null
-                || current == null) {
-            return false;
-        }
-
-        if (goal.contains(current)) {
-            return true;
-        }
-
-        Optional<Vec3> intersection =
-                goal.clip(
-                        previous,
-                        current
-                );
-
-        return intersection.isPresent();
+        return GoalDetector.crossed(goal, previous, current);
     }
 
     private static void teleportTeams(

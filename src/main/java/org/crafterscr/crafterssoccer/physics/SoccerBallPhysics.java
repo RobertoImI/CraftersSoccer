@@ -2,7 +2,6 @@ package org.crafterscr.crafterssoccer.physics;
 
 import org.crafterscr.crafterssoccer.entity.SoccerBallEntity;
 
-import net.minecraft.util.Mth;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.phys.Vec3;
 
@@ -59,16 +58,6 @@ public final class SoccerBallPhysics {
      * Velocidad máxima absoluta.
      */
     public static final double MAX_SPEED = 2.40D;
-
-    /**
-     * Fuerza mínima de un clic rápido.
-     */
-    private static final double MIN_KICK_POWER = 0.38D;
-
-    /**
-     * Fuerza máxima de un tiro cargado.
-     */
-    private static final double MAX_KICK_POWER = 1.45D;
 
     private SoccerBallPhysics() {
     }
@@ -132,119 +121,20 @@ public final class SoccerBallPhysics {
                                 previousPosition
                         );
 
-        double velocityX =
-                velocityAfterEntityCollision.x;
+        Vec3 bouncedVelocity = BlockBounceResolver.resolve(
+                movementAttempt,
+                actualMovement,
+                velocityAfterEntityCollision,
+                ball.verticalCollision
+        );
 
-        double velocityY =
-                velocityAfterEntityCollision.y;
-
-        double velocityZ =
-                velocityAfterEntityCollision.z;
-
-        /*
-         * Detectar bloqueo contra una pared en X.
-         */
-        boolean blockedX =
-                Math.abs(movementAttempt.x) > 0.001D
-                        && Math.abs(actualMovement.x)
-                        < Math.abs(movementAttempt.x)
-                        * 0.35D;
-
-        /*
-         * Detectar bloqueo contra una pared en Z.
-         */
-        boolean blockedZ =
-                Math.abs(movementAttempt.z) > 0.001D
-                        && Math.abs(actualMovement.z)
-                        < Math.abs(movementAttempt.z)
-                        * 0.35D;
-
-        /*
-         * Rebote contra paredes.
-         */
-        if (blockedX) {
-            velocityX =
-                    -velocityAfterEntityCollision.x
-                            * WALL_BOUNCE;
-        }
-
-        if (blockedZ) {
-            velocityZ =
-                    -velocityAfterEntityCollision.z
-                            * WALL_BOUNCE;
-        }
-
-        /*
-         * Rebote contra suelo o techo.
-         */
-        if (ball.verticalCollision) {
-            if (velocityAfterEntityCollision.y
-                    < -STOP_VERTICAL_SPEED) {
-
-                velocityY =
-                        -velocityAfterEntityCollision.y
-                                * FLOOR_BOUNCE;
-
-            } else if (velocityAfterEntityCollision.y
-                    > STOP_VERTICAL_SPEED) {
-
-                velocityY =
-                        -velocityAfterEntityCollision.y
-                                * WALL_BOUNCE;
-
-            } else {
-                velocityY = 0.0D;
-            }
-        }
-
-        /*
-         * Aplicar fricción o resistencia del aire.
-         */
-        if (ball.onGround()) {
-            velocityX *= GROUND_FRICTION;
-            velocityZ *= GROUND_FRICTION;
-
-        } else {
-            velocityX *= AIR_DRAG;
-            velocityY *= AIR_DRAG;
-            velocityZ *= AIR_DRAG;
-        }
-
-        /*
-         * Detener movimientos horizontales muy pequeños.
-         */
-        if (ball.onGround()
-                && Math.abs(velocityX)
-                < STOP_HORIZONTAL_SPEED) {
-
-            velocityX = 0.0D;
-        }
-
-        if (ball.onGround()
-                && Math.abs(velocityZ)
-                < STOP_HORIZONTAL_SPEED) {
-
-            velocityZ = 0.0D;
-        }
-
-        /*
-         * Detener rebotes verticales muy pequeños.
-         */
-        if (ball.onGround()
-                && Math.abs(velocityY)
-                < STOP_VERTICAL_SPEED) {
-
-            velocityY = 0.0D;
-        }
+        Vec3 finalVelocity = SurfaceMotionResolver.resolve(
+                bouncedVelocity,
+                ball.onGround()
+        );
 
         ball.setDeltaMovement(
-                clampVelocity(
-                        new Vec3(
-                                velocityX,
-                                velocityY,
-                                velocityZ
-                        )
-                )
+                clampVelocity(finalVelocity)
         );
 
         /*
@@ -291,23 +181,6 @@ public final class SoccerBallPhysics {
     public static double getKickHorizontalPower(
             float charge
     ) {
-        float safeCharge =
-                Mth.clamp(
-                        charge,
-                        0.0F,
-                        1.0F
-                );
-
-        double curvedCharge =
-                Math.pow(
-                        safeCharge,
-                        1.85D
-                );
-
-        return Mth.lerp(
-                curvedCharge,
-                MIN_KICK_POWER,
-                MAX_KICK_POWER
-        );
+        return KickResolver.horizontalPower(charge);
     }
 }
