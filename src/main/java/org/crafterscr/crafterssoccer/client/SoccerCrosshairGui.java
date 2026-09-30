@@ -39,6 +39,16 @@ public final class SoccerCrosshairGui {
         boolean charging =
                 ClientSoccerState.isCharging();
 
+        boolean passWindow =
+                ClientSoccerState.isPassWindow();
+
+        boolean assistedPass =
+                passWindow
+                        && ClientSoccerState
+                        .hasLikelyPassTarget(
+                                minecraft
+                        );
+
         /*
          * Solo mostrar cuando puede comenzar un tiro
          * o mientras ya está cargando.
@@ -82,9 +92,14 @@ public final class SoccerCrosshairGui {
         int color;
 
         /*
-         * El color indica el tipo aproximado de tiro.
+         * Azul/cian durante la ventana de pase. Cian significa que el
+         * cliente detecta un compañero probable dentro del cono de ayuda.
          */
-        if (charging && lookY > 0.48D) {
+        if (assistedPass) {
+            color = 0xFF55FFFF;
+        } else if (passWindow) {
+            color = 0xFF70B7FF;
+        } else if (charging && lookY > 0.48D) {
             color = 0xFFFFA64D;
         } else if (charging && lookY > 0.20D) {
             color = 0xFFFFFF55;
@@ -92,6 +107,18 @@ public final class SoccerCrosshairGui {
             color = 0xFF47FF75;
         } else {
             color = 0xFF56D978;
+        }
+
+        if (passWindow) {
+            graphics.drawCenteredString(
+                    minecraft.font,
+                    assistedPass
+                            ? "P"
+                            : "p",
+                    centerX,
+                    centerY + 13,
+                    color
+            );
         }
 
         int shadowColor =
