@@ -13,7 +13,10 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * Tecla B para entrar o salir de la cámara TV.
+ * Tecla B para controlar la transmisión TV.
+ *
+ * Con una cámara: entrar -> salir.
+ * Con varias: Cámara 1 -> Cámara 2 -> Cámara 3 -> salir.
  */
 public final class BroadcastCameraKeyMappings {
 
