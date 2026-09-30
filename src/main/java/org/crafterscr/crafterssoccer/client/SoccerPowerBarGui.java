@@ -43,8 +43,22 @@ public final class SoccerPowerBarGui {
         int y =
                 screenHeight - 65;
 
+        boolean passWindow =
+                ClientSoccerState.isPassWindow();
+
+        boolean assistedPass =
+                passWindow
+                        && ClientSoccerState
+                        .hasLikelyPassTarget(
+                                minecraft
+                        );
+
         float charge =
-                ClientSoccerState.getCharge();
+                passWindow
+                        ? ClientSoccerState
+                        .getPassWindowProgress()
+                        : ClientSoccerState
+                        .getCharge();
 
         int internalWidth =
                 BAR_WIDTH - 4;
@@ -98,8 +112,19 @@ public final class SoccerPowerBarGui {
                 0xFF333333
         );
 
-        int powerColor =
-                getPowerColor(charge);
+        int powerColor;
+
+        if (passWindow) {
+            powerColor =
+                    assistedPass
+                            ? 0xFF55FFFF
+                            : 0xFF70B7FF;
+        } else {
+            powerColor =
+                    getPowerColor(
+                            charge
+                    );
+        }
 
         graphics.fill(
                 x + 2,
@@ -109,10 +134,21 @@ public final class SoccerPowerBarGui {
                 powerColor
         );
 
-        String percentageText =
-                "POTENCIA "
-                        + Math.round(charge * 100.0F)
-                        + "%";
+        String percentageText;
+
+        if (passWindow) {
+            percentageText =
+                    assistedPass
+                            ? "PASE ASISTIDO"
+                            : "PASE MANUAL";
+        } else {
+            percentageText =
+                    "POTENCIA "
+                            + Math.round(
+                            charge * 100.0F
+                    )
+                            + "%";
+        }
 
         graphics.drawCenteredString(
                 minecraft.font,
@@ -123,11 +159,21 @@ public final class SoccerPowerBarGui {
         );
 
         /*
-         * Mostrar el tipo aproximado de tiro según
-         * la inclinación de la cámara.
+         * Durante el pase indicamos que será rasante. Al superar la
+         * ventana de pase vuelve la lectura normal de tiro.
          */
         String shotType =
-                getShotType(
+                passWindow
+                        ? "PASE RASO"
+                        : getShotType(
+                        minecraft.player
+                                .getLookAngle().y
+                );
+
+        int shotTypeColor =
+                passWindow
+                        ? powerColor
+                        : getShotTypeColor(
                         minecraft.player
                                 .getLookAngle().y
                 );
@@ -137,10 +183,7 @@ public final class SoccerPowerBarGui {
                 shotType,
                 screenWidth / 2,
                 y - 10,
-                getShotTypeColor(
-                        minecraft.player
-                                .getLookAngle().y
-                )
+                shotTypeColor
         );
     }
 
