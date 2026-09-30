@@ -50,10 +50,21 @@ public final class PlayerImpactManager {
     /*
      * Protección anti-gank para golpes normales.
      */
-    private static final int RAPID_HIT_WINDOW_TICKS = 10;
+    private static final int RAPID_HIT_WINDOW_TICKS = 15;
     private static final float RAPID_HIT_MULTIPLIER = 0.40F;
     private static final int NORMAL_CAP_WINDOW_TICKS = 30;
-    private static final float NORMAL_IMPACT_CAP_PER_WINDOW = 48.0F;
+    private static final float NORMAL_IMPACT_CAP_PER_WINDOW = 40.0F;
+
+    /*
+     * Protección adicional cuando varios atacantes golpean a la misma
+     * víctima casi al mismo tiempo.
+     *
+     * El daño vanilla no cambia: solamente se reduce cuánto llena la
+     * barra de impacto/derribo.
+     */
+    private static final int CROWD_ATTACKER_WINDOW_TICKS = 20;
+    private static final float SECOND_ATTACKER_MULTIPLIER = 0.75F;
+    private static final float THIRD_PLUS_ATTACKER_MULTIPLIER = 0.55F;
 
     /*
      * Recuperación pasiva del impacto.
@@ -66,6 +77,12 @@ public final class PlayerImpactManager {
             new HashMap<>();
 
     private static final Map<UUID, ImpactWindow> NORMAL_WINDOWS =
+            new HashMap<>();
+
+    private static final Map<
+            UUID,
+            Map<UUID, Long>
+            > RECENT_NORMAL_ATTACKERS =
             new HashMap<>();
 
     private static final Map<UUID, Long> LAST_ANY_IMPACT =
@@ -224,6 +241,39 @@ public final class PlayerImpactManager {
                 <= RAPID_HIT_WINDOW_TICKS) {
             amount *=
                     RAPID_HIT_MULTIPLIER;
+        }
+
+        /*
+         * Detecta cuántos atacantes distintos han golpeado a esta víctima
+         * durante el último segundo. El segundo atacante aporta menos
+         * impacto y, desde el tercero, la contribución baja todavía más.
+         */
+        Map<UUID, Long> recentAttackers =
+                RECENT_NORMAL_ATTACKERS.computeIfAbsent(
+                        victim.getUUID(),
+                        ignored -> new HashMap<>()
+                );
+
+        recentAttackers.entrySet().removeIf(
+                entry ->
+                        gameTime - entry.getValue()
+                                > CROWD_ATTACKER_WINDOW_TICKS
+        );
+
+        recentAttackers.put(
+                attacker.getUUID(),
+                gameTime
+        );
+
+        int activeAttackers =
+                recentAttackers.size();
+
+        if (activeAttackers >= 3) {
+            amount *=
+                    THIRD_PLUS_ATTACKER_MULTIPLIER;
+        } else if (activeAttackers == 2) {
+            amount *=
+                    SECOND_ATTACKER_MULTIPLIER;
         }
 
         LAST_NORMAL_HIT.put(
@@ -708,6 +758,7 @@ public final class PlayerImpactManager {
                 impactIterator.remove();
                 LAST_NORMAL_HIT.remove(playerId);
                 NORMAL_WINDOWS.remove(playerId);
+                RECENT_NORMAL_ATTACKERS.remove(playerId);
                 LAST_ANY_IMPACT.remove(playerId);
                 LAST_PASSIVE_DECAY.remove(playerId);
             } else {
@@ -784,6 +835,10 @@ public final class PlayerImpactManager {
         );
 
         NORMAL_WINDOWS.remove(
+                player.getUUID()
+        );
+
+        RECENT_NORMAL_ATTACKERS.remove(
                 player.getUUID()
         );
 
