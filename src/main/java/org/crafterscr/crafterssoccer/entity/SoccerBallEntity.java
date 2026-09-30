@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import org.crafterscr.crafterssoccer.physics.PassResolver;
 import org.crafterscr.crafterssoccer.physics.SoccerBallPhysics;
 import org.crafterscr.crafterssoccer.referee.RefereeCardManager;
 
@@ -1827,7 +1828,8 @@ public class SoccerBallEntity extends Entity {
      */
     public void kick(
             ServerPlayer player,
-            float charge
+            float charge,
+            boolean passRequested
     ) {
         if (!this.isAlive()) {
             return;
@@ -1917,6 +1919,71 @@ public class SoccerBallEntity extends Entity {
 
         horizontalForward =
                 horizontalForward.normalize();
+
+        /*
+         * Un clic rápido solicita un pase. El servidor vuelve a validar
+         * la carga y decide si existe un compañero elegible dentro del
+         * cono de asistencia. Si no lo hay, el pase sigue manualmente la
+         * dirección de la cámara.
+         */
+        if (passRequested
+                && PassResolver.isValidPassRequest(
+                safeCharge
+        )) {
+            PassResolver.PassSolution pass =
+                    PassResolver.resolve(
+                            this,
+                            player,
+                            horizontalForward,
+                            safeCharge
+                    );
+
+            Vec3 passVelocity =
+                    pass.direction()
+                            .scale(
+                                    pass.power()
+                            )
+                            .add(
+                                    0.0D,
+                                    0.035D,
+                                    0.0D
+                            );
+
+            this.setDeltaMovement(
+                    SoccerBallPhysics.clampVelocity(
+                            passVelocity
+                    )
+            );
+
+            this.hasImpulse = true;
+
+            this.temporarilyIgnoredEntity =
+                    player.getUUID();
+
+            this.ignoredEntityUntilGameTime =
+                    this.level().getGameTime()
+                            + KICKER_IGNORE_TICKS;
+
+            this.lastLegTouchTimes.put(
+                    player.getUUID(),
+                    this.level().getGameTime()
+            );
+
+            this.level().playSound(
+                    null,
+                    this.blockPosition(),
+                    SoundEvents.PLAYER_ATTACK_SWEEP,
+                    SoundSource.PLAYERS,
+                    pass.assisted()
+                            ? 0.72F
+                            : 0.62F,
+                    pass.assisted()
+                            ? 1.14F
+                            : 1.04F
+            );
+
+            return;
+        }
 
         Vec3 rightDirection =
                 new Vec3(
