@@ -15,7 +15,8 @@ import net.minecraft.resources.ResourceLocation;
  */
 public record KickBallPayload(
         int entityId,
-        float charge
+        float charge,
+        boolean passRequested
 ) implements CustomPacketPayload {
 
     public static final Type<KickBallPayload> TYPE =
@@ -36,6 +37,9 @@ public record KickBallPayload(
 
                     ByteBufCodecs.FLOAT,
                     KickBallPayload::charge,
+
+                    ByteBufCodecs.BOOL,
+                    KickBallPayload::passRequested,
 
                     KickBallPayload::new
             );
