@@ -391,10 +391,11 @@ public final class ClientSoccerState {
         }
 
         String side =
-                ClientMatchState.getPlayerTeamSide();
+                getSoccerSide(
+                        minecraft.player
+                );
 
-        if (!"RED".equals(side)
-                && !"BLUE".equals(side)) {
+        if (side.isEmpty()) {
             return false;
         }
 
@@ -463,29 +464,39 @@ public final class ClientSoccerState {
             AbstractClientPlayer candidate,
             String side
     ) {
-        if (!(candidate.getTeam()
+        return side.equals(
+                getSoccerSide(
+                        candidate
+                )
+        );
+    }
+
+    private static String getSoccerSide(
+            AbstractClientPlayer player
+    ) {
+        if (!(player.getTeam()
                 instanceof PlayerTeam team)) {
-            return false;
+            return "";
         }
 
         String teamName =
                 team.getName();
 
-        if ("RED".equals(side)) {
-            return "csoccer_red".equals(
-                    teamName
-            )
-                    || "csoccer_red_gk".equals(
-                    teamName
-            );
+        if ("csoccer_red".equals(teamName)
+                || "csoccer_red_gk".equals(
+                teamName
+        )) {
+            return "RED";
         }
 
-        return "csoccer_blue".equals(
-                teamName
-        )
+        if ("csoccer_blue".equals(teamName)
                 || "csoccer_blue_gk".equals(
                 teamName
-        );
+        )) {
+            return "BLUE";
+        }
+
+        return "";
     }
 
     /**
