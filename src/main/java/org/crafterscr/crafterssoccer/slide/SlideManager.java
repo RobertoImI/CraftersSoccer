@@ -58,11 +58,15 @@ public final class SlideManager {
     private static final double TACKLE_HEIGHT = 0.95D;
     private static final double BALL_HIT_INFLATE = 0.30D;
     private static final int BALL_CONTROL_TICKS = 14;
-    private static final int OTHER_SLIDE_IMMUNITY_TICKS = 15;
+    private static final int OTHER_SLIDE_IMMUNITY_TICKS = 20;
 
-    private static final float BACK_IMPACT = 80.0F;
-    private static final float SIDE_IMPACT = 50.0F;
-    private static final float FRONT_IMPACT = 25.0F;
+    /*
+     * El barrido sigue premiando entrar por detrás, pero ya no deja a la
+     * víctima prácticamente derribada con un solo contacto.
+     */
+    private static final float BACK_IMPACT = 60.0F;
+    private static final float SIDE_IMPACT = 35.0F;
+    private static final float FRONT_IMPACT = 20.0F;
 
     private static final Map<UUID, SlideData> ACTIVE =
             new HashMap<>();
