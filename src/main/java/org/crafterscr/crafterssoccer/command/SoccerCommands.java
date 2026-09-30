@@ -1091,6 +1091,12 @@ public final class SoccerCommands {
         return Commands.literal("camera")
                 .then(
                         Commands.literal("set")
+
+                                /*
+                                 * Compatibilidad:
+                                 * /soccer camera set <player>
+                                 * sigue asignando Cámara 1.
+                                 */
                                 .then(
                                         Commands.argument(
                                                         "player",
@@ -1100,10 +1106,41 @@ public final class SoccerCommands {
                                                         context ->
                                                                 setBroadcastCamera(
                                                                         context.getSource(),
+                                                                        1,
                                                                         EntityArgument.getPlayer(
                                                                                 context,
                                                                                 "player"
                                                                         )
+                                                                )
+                                                )
+                                )
+
+                                .then(
+                                        Commands.argument(
+                                                        "slot",
+                                                        IntegerArgumentType.integer(
+                                                                1,
+                                                                SpectatorBroadcastManager.MAX_CAMERAS
+                                                        )
+                                                )
+                                                .then(
+                                                        Commands.argument(
+                                                                        "player",
+                                                                        EntityArgument.player()
+                                                                )
+                                                                .executes(
+                                                                        context ->
+                                                                                setBroadcastCamera(
+                                                                                        context.getSource(),
+                                                                                        IntegerArgumentType.getInteger(
+                                                                                                context,
+                                                                                                "slot"
+                                                                                        ),
+                                                                                        EntityArgument.getPlayer(
+                                                                                                context,
+                                                                                                "player"
+                                                                                        )
+                                                                                )
                                                                 )
                                                 )
                                 )
@@ -1114,6 +1151,25 @@ public final class SoccerCommands {
                                         context ->
                                                 clearBroadcastCamera(
                                                         context.getSource()
+                                                )
+                                )
+                                .then(
+                                        Commands.argument(
+                                                        "slot",
+                                                        IntegerArgumentType.integer(
+                                                                1,
+                                                                SpectatorBroadcastManager.MAX_CAMERAS
+                                                        )
+                                                )
+                                                .executes(
+                                                        context ->
+                                                                clearBroadcastCamera(
+                                                                        context.getSource(),
+                                                                        IntegerArgumentType.getInteger(
+                                                                                context,
+                                                                                "slot"
+                                                                        )
+                                                                )
                                                 )
                                 )
                 )
@@ -2623,6 +2679,7 @@ public final class SoccerCommands {
 
     private static int setBroadcastCamera(
             CommandSourceStack source,
+            int cameraNumber,
             ServerPlayer operator
     ) {
         if (SoccerMatchManager.getPlayerTeam(
@@ -2640,11 +2697,15 @@ public final class SoccerCommands {
 
         if (!SpectatorBroadcastManager.setCameraOperator(
                 source.getServer(),
+                cameraNumber,
                 operator
         )) {
             source.sendFailure(
                     Component.literal(
-                            "§cNo se pudo asignar la cámara."
+                            "§cNo se pudo asignar la Cámara "
+                                    + cameraNumber
+                                    + ". El jugador puede estar asignado "
+                                    + "ya a otra cámara."
                     )
             );
             return 0;
@@ -2652,9 +2713,11 @@ public final class SoccerCommands {
 
         source.sendSuccess(
                 () -> Component.literal(
-                        "§aCámara TV asignada a §f"
+                        "§aCámara TV "
+                                + cameraNumber
+                                + " asignada a §f"
                                 + operator.getName().getString()
-                                + "§a. Los espectadores pueden pulsar §fB§a."
+                                + "§a. Los espectadores cambian con §fB§a."
                 ),
                 true
         );
@@ -2670,7 +2733,7 @@ public final class SoccerCommands {
         )) {
             source.sendFailure(
                     Component.literal(
-                            "§cNo hay una cámara TV asignada."
+                            "§cNo hay cámaras TV asignadas."
                     )
             );
             return 0;
@@ -2678,7 +2741,37 @@ public final class SoccerCommands {
 
         source.sendSuccess(
                 () -> Component.literal(
-                        "§eCámara TV eliminada."
+                        "§eTodas las cámaras TV fueron eliminadas."
+                ),
+                true
+        );
+
+        return 1;
+    }
+
+    private static int clearBroadcastCamera(
+            CommandSourceStack source,
+            int cameraNumber
+    ) {
+        if (!SpectatorBroadcastManager.clearCameraOperator(
+                source.getServer(),
+                cameraNumber
+        )) {
+            source.sendFailure(
+                    Component.literal(
+                            "§cLa Cámara "
+                                    + cameraNumber
+                                    + " no está asignada."
+                    )
+            );
+            return 0;
+        }
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§eCámara TV "
+                                + cameraNumber
+                                + " eliminada."
                 ),
                 true
         );
@@ -2689,15 +2782,16 @@ public final class SoccerCommands {
     private static int showBroadcastCameraStatus(
             CommandSourceStack source
     ) {
-        ServerPlayer operator =
-                SpectatorBroadcastManager.getCameraOperator(
-                        source.getServer()
-                );
+        int active =
+                SpectatorBroadcastManager
+                        .getConfiguredCameraCount(
+                                source.getServer()
+                        );
 
-        if (operator == null) {
+        if (active <= 0) {
             source.sendSuccess(
                     () -> Component.literal(
-                            "§7No hay una cámara TV asignada."
+                            "§7No hay cámaras TV asignadas."
                     ),
                     false
             );
@@ -2706,13 +2800,45 @@ public final class SoccerCommands {
 
         source.sendSuccess(
                 () -> Component.literal(
-                        "§aCámara TV activa: §f"
-                                + operator.getName().getString()
+                        "§6§lCámaras TV activas: §f"
+                                + active
+                                + "§7/"
+                                + SpectatorBroadcastManager.MAX_CAMERAS
                 ),
                 false
         );
 
-        return 1;
+        for (int cameraNumber = 1;
+             cameraNumber
+                     <= SpectatorBroadcastManager.MAX_CAMERAS;
+             cameraNumber++) {
+
+            ServerPlayer operator =
+                    SpectatorBroadcastManager.getCameraOperator(
+                            source.getServer(),
+                            cameraNumber
+                    );
+
+            int finalCameraNumber =
+                    cameraNumber;
+
+            source.sendSuccess(
+                    () -> Component.literal(
+                            operator == null
+                                    ? "§8- Cámara "
+                                    + finalCameraNumber
+                                    + ": §7vacía"
+                                    : "§8- §bCámara "
+                                    + finalCameraNumber
+                                    + ": §f"
+                                    + operator.getName()
+                                    .getString()
+                    ),
+                    false
+            );
+        }
+
+        return active;
     }
 
     private static int startMatch(
