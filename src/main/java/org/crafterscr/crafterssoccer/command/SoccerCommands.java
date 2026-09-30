@@ -12,6 +12,7 @@ import org.crafterscr.crafterssoccer.match.SoccerMatch;
 import org.crafterscr.crafterssoccer.match.SoccerMatchManager;
 import org.crafterscr.crafterssoccer.match.SoccerTeamSide;
 import org.crafterscr.crafterssoccer.registry.ModEntities;
+import org.crafterscr.crafterssoccer.referee.RefereeManager;
 import org.crafterscr.crafterssoccer.spectator.SpectatorBroadcastManager;
 
 import com.mojang.brigadier.arguments.IntegerArgumentType;
@@ -70,7 +71,6 @@ public final class SoccerCommands {
         TeamCommands.register(root);
         root.then(
                 createRefereeCommands()
-                        .requires(CommandAccess::isAdministrator)
         );
         MatchCommands.register(root);
         BroadcastCommands.register(root);
@@ -754,6 +754,9 @@ public final class SoccerCommands {
 
                 .then(
                         Commands.literal("set")
+                                .requires(
+                                        CommandAccess::isAdministrator
+                                )
                                 .then(
                                         Commands.argument(
                                                         "player",
@@ -774,6 +777,9 @@ public final class SoccerCommands {
 
                 .then(
                         Commands.literal("clear")
+                                .requires(
+                                        CommandAccess::isAdministrator
+                                )
                                 .executes(
                                         context ->
                                                 clearReferee(
@@ -784,10 +790,50 @@ public final class SoccerCommands {
 
                 .then(
                         Commands.literal("status")
+                                .requires(
+                                        CommandAccess::isAdministrator
+                                )
                                 .executes(
                                         context ->
                                                 showRefereeStatus(
                                                         context.getSource()
+                                                )
+                                )
+                )
+
+                .then(
+                        Commands.literal("foul")
+                                .requires(
+                                        CommandAccess::isAssignedReferee
+                                )
+
+                                .then(
+                                        Commands.literal("freeze")
+                                                .executes(
+                                                        context ->
+                                                                freezeFoulBall(
+                                                                        context.getSource()
+                                                                )
+                                                )
+                                )
+
+                                .then(
+                                        Commands.literal("release")
+                                                .executes(
+                                                        context ->
+                                                                releaseFoulBall(
+                                                                        context.getSource()
+                                                                )
+                                                )
+                                )
+
+                                .then(
+                                        Commands.literal("status")
+                                                .executes(
+                                                        context ->
+                                                                showFoulBallStatus(
+                                                                        context.getSource()
+                                                                )
                                                 )
                                 )
                 );
@@ -2202,6 +2248,113 @@ public final class SoccerCommands {
         );
 
         return 1;
+    }
+
+    private static int freezeFoulBall(
+            CommandSourceStack source
+    ) {
+        if (!(source.getEntity()
+                instanceof ServerPlayer referee)) {
+            return 0;
+        }
+
+        RefereeManager.FoulBallResult result =
+                RefereeManager.freezeBallForFoul(
+                        source.getServer(),
+                        referee
+                );
+
+        return sendFoulBallResult(
+                source,
+                result,
+                true
+        );
+    }
+
+    private static int releaseFoulBall(
+            CommandSourceStack source
+    ) {
+        if (!(source.getEntity()
+                instanceof ServerPlayer referee)) {
+            return 0;
+        }
+
+        RefereeManager.FoulBallResult result =
+                RefereeManager.releaseBallFromFoul(
+                        source.getServer(),
+                        referee
+                );
+
+        return sendFoulBallResult(
+                source,
+                result,
+                false
+        );
+    }
+
+    private static int showFoulBallStatus(
+            CommandSourceStack source
+    ) {
+        boolean frozen =
+                RefereeManager.isBallFrozenForFoul(
+                        source.getServer()
+                );
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        frozen
+                                ? "§eBalón por falta: §cCONGELADO"
+                                : "§eBalón por falta: §aLIBRE"
+                ),
+                false
+        );
+
+        return frozen ? 1 : 0;
+    }
+
+    private static int sendFoulBallResult(
+            CommandSourceStack source,
+            RefereeManager.FoulBallResult result,
+            boolean freezing
+    ) {
+        if (result
+                == RefereeManager.FoulBallResult.SUCCESS) {
+
+            source.sendSuccess(
+                    () -> Component.literal(
+                            freezing
+                                    ? "§c§lFALTA §7- §eBalón detenido. Solo puedes moverlo como árbitro."
+                                    : "§aBalón liberado. El juego puede continuar."
+                    ),
+                    true
+            );
+
+            return 1;
+        }
+
+        String message =
+                switch (result) {
+                    case NOT_REFEREE ->
+                            "§cSolo el árbitro asignado puede usar esta acción.";
+                    case NO_ACTIVE_MATCH ->
+                            "§cNo hay un partido activo.";
+                    case NO_BALL ->
+                            "§cNo se encontró el balón oficial del partido.";
+                    case ALREADY_FROZEN ->
+                            "§eEl balón ya está congelado por una falta.";
+                    case NOT_FROZEN ->
+                            "§eEl balón no está congelado por una falta.";
+                    case SUCCESS ->
+                            "";
+                };
+
+        source.sendFailure(
+                Component.literal(
+                        message
+                )
+        );
+
+        return 0;
     }
 
     private static int listTeams(
