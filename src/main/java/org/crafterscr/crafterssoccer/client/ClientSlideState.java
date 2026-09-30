@@ -17,9 +17,14 @@ public final class ClientSlideState {
     public static final int COOLDOWN_TICKS = 100;
 
     /**
-     * La cámara termina mucho antes que la animación del barrido.
+     * Duración visual alineada con el barrido autoritativo del servidor.
      */
-    public static final int FIRST_PERSON_CAMERA_TICKS = 15;
+    public static final int SLIDE_VISUAL_TICKS = 20;
+
+    /**
+     * La inclinación de cámara termina antes que la animación completa.
+     */
+    public static final int FIRST_PERSON_CAMERA_TICKS = 12;
 
     private static final Set<Integer> SLIDING =
             new HashSet<>();
@@ -107,7 +112,7 @@ public final class ClientSlideState {
             localSlideVisualTicks =
                     Math.min(
                             localSlideVisualTicks + 1,
-                            36
+                            SLIDE_VISUAL_TICKS
                     );
         }
 
@@ -182,7 +187,8 @@ public final class ClientSlideState {
                 0.0F,
                 Math.min(
                         1.0F,
-                        localSlideVisualTicks / 36.0F
+                        localSlideVisualTicks
+                                / (float) SLIDE_VISUAL_TICKS
                 )
         );
     }
