@@ -17,7 +17,7 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
  */
 public final class ModNetworking {
 
-    private static final String NETWORK_VERSION = "11";
+    private static final String NETWORK_VERSION = "12";
 
     private ModNetworking() {
     }
@@ -124,7 +124,8 @@ public final class ModNetworking {
 
         ball.kick(
                 player,
-                payload.charge()
+                payload.charge(),
+                payload.passRequested()
         );
     }
 
