@@ -25,8 +25,11 @@ public final class PassResolver {
     public static final double MAX_ASSIST_DISTANCE = 25.0D;
     public static final double ASSIST_CONE_DEGREES = 22.0D;
 
-    private static final double MIN_PASS_POWER = 0.60D;
-    private static final double MAX_PASS_POWER = 0.85D;
+    private static final double MIN_MANUAL_PASS_POWER = 0.55D;
+    private static final double MAX_MANUAL_PASS_POWER = 0.95D;
+    private static final double MIN_ASSISTED_PASS_POWER = 0.48D;
+    private static final double MAX_ASSISTED_PASS_POWER = 2.05D;
+    private static final double PASS_POWER_PER_BLOCK = 0.085D;
     private static final double DIRECTION_ASSIST = 0.75D;
     private static final double LEAD_TICKS = 6.0D;
     private static final float MAX_PASS_CHARGE = 0.30F;
@@ -89,8 +92,8 @@ public final class PassResolver {
             double power =
                     Mth.lerp(
                             tapStrength,
-                            MIN_PASS_POWER,
-                            0.80D
+                            MIN_MANUAL_PASS_POWER,
+                            MAX_MANUAL_PASS_POWER
                     );
 
             return new PassSolution(
@@ -150,30 +153,27 @@ public final class PassResolver {
                         )
                 );
 
-        double distanceFactor =
-                Mth.clamp(
-                        distance / MAX_ASSIST_DISTANCE,
-                        0.0D,
-                        1.0D
-                );
-
-        double distancePower =
-                Mth.lerp(
-                        distanceFactor,
-                        0.65D,
-                        MAX_PASS_POWER
-                );
-
-        double tapPower =
+        /*
+         * La fricción del balón reduce aproximadamente 8.4 % de la
+         * velocidad por tick al rodar. Por eso la potencia de un pase
+         * asistido se escala con la distancia al receptor en lugar de
+         * usar una fuerza fija que se quedaría corta en pases largos.
+         */
+        double tapMultiplier =
                 Mth.lerp(
                         tapStrength,
-                        0.64D,
-                        0.82D
+                        0.95D,
+                        1.05D
                 );
 
         double finalPower =
-                distancePower * 0.80D
-                        + tapPower * 0.20D;
+                Mth.clamp(
+                        distance
+                                * PASS_POWER_PER_BLOCK
+                                * tapMultiplier,
+                        MIN_ASSISTED_PASS_POWER,
+                        MAX_ASSISTED_PASS_POWER
+                );
 
         return new PassSolution(
                 blendedDirection,
@@ -230,6 +230,7 @@ public final class PassResolver {
                             );
 
             if (candidate == null
+                    || candidate.level() != ball.level()
                     || !candidate.isAlive()
                     || candidate.isSpectator()
                     || RefereeCardManager.isExpelled(
