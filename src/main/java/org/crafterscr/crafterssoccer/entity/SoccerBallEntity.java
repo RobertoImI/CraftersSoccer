@@ -435,6 +435,43 @@ public class SoccerBallEntity extends Entity {
         this.goalkeeperHoldUntilGameTime = 0L;
         this.refereeHolder = null;
 
+        /*
+         * La falta deja el balón en el suelo manteniendo X/Z.
+         * Si estaba rebotando o ligeramente en el aire, cae
+         * verticalmente hasta la primera superficie sólida.
+         */
+        Vec3 currentPosition =
+                this.position();
+
+        net.minecraft.world.phys.BlockHitResult groundHit =
+                this.level().clip(
+                        new net.minecraft.world.level.ClipContext(
+                                currentPosition.add(
+                                        0.0D,
+                                        0.75D,
+                                        0.0D
+                                ),
+                                new Vec3(
+                                        currentPosition.x,
+                                        this.level().getMinBuildHeight()
+                                                - 2.0D,
+                                        currentPosition.z
+                                ),
+                                net.minecraft.world.level.ClipContext.Block.COLLIDER,
+                                net.minecraft.world.level.ClipContext.Fluid.NONE,
+                                this
+                        )
+                );
+
+        if (groundHit.getType()
+                == net.minecraft.world.phys.HitResult.Type.BLOCK) {
+            this.setPos(
+                    currentPosition.x,
+                    groundHit.getLocation().y + 0.02D,
+                    currentPosition.z
+            );
+        }
+
         this.foulFreezeReferee =
                 referee.getUUID();
 
