@@ -234,7 +234,9 @@ public final class PlayerImpactManager {
         long previousHit =
                 LAST_NORMAL_HIT.getOrDefault(
                         victim.getUUID(),
-                        Long.MIN_VALUE
+                        gameTime
+                                - RAPID_HIT_WINDOW_TICKS
+                                - 1L
                 );
 
         if (gameTime - previousHit
@@ -540,6 +542,18 @@ public final class PlayerImpactManager {
         }
 
         IMPACT.remove(
+                player.getUUID()
+        );
+
+        LAST_NORMAL_HIT.remove(
+                player.getUUID()
+        );
+
+        NORMAL_WINDOWS.remove(
+                player.getUUID()
+        );
+
+        RECENT_NORMAL_ATTACKERS.remove(
                 player.getUUID()
         );
 
@@ -880,6 +894,18 @@ public final class PlayerImpactManager {
                 ) != null;
 
         IMPACT.remove(
+                player.getUUID()
+        );
+
+        LAST_NORMAL_HIT.remove(
+                player.getUUID()
+        );
+
+        NORMAL_WINDOWS.remove(
+                player.getUUID()
+        );
+
+        RECENT_NORMAL_ATTACKERS.remove(
                 player.getUUID()
         );
 
