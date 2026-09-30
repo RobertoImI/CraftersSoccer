@@ -182,6 +182,14 @@ public class SoccerBallEntity extends Entity {
     private UUID slideController;
     private long slideControlUntilGameTime;
 
+    /*
+     * Balón muerto por una falta señalada por el árbitro.
+     * Mientras exista este UUID ningún jugador puede patearlo,
+     * tocarlo, barrerlo ni tomarlo como portero. El árbitro sí puede
+     * agarrarlo con clic derecho para recolocarlo.
+     */
+    private UUID foulFreezeReferee;
+
     public SoccerBallEntity(
             EntityType<? extends SoccerBallEntity> entityType,
             Level level
@@ -215,6 +223,15 @@ public class SoccerBallEntity extends Entity {
 
         if (!this.level().isClientSide()
                 && tickRefereeHold()) {
+            return;
+        }
+
+        if (!this.level().isClientSide()
+                && isFoulFrozen()) {
+            this.setDeltaMovement(
+                    Vec3.ZERO
+            );
+            this.hasImpulse = true;
             return;
         }
 
@@ -260,7 +277,8 @@ public class SoccerBallEntity extends Entity {
             int maximumTicks
     ) {
         if (isHeldByReferee()
-                || isHeldByGoalkeeper()) {
+                || isHeldByGoalkeeper()
+                || isFoulFrozen()) {
             return;
         }
 
@@ -398,6 +416,71 @@ public class SoccerBallEntity extends Entity {
 
         this.hasImpulse = true;
         return true;
+    }
+
+    /**
+     * Congela el balón exactamente en su posición actual por una falta.
+     * Cualquier control previo de jugador/portero se cancela.
+     */
+    public void freezeForFoul(
+            ServerPlayer referee
+    ) {
+        if (referee == null) {
+            return;
+        }
+
+        releaseSlideControl();
+
+        this.goalkeeperHolder = null;
+        this.goalkeeperHoldUntilGameTime = 0L;
+        this.refereeHolder = null;
+
+        this.foulFreezeReferee =
+                referee.getUUID();
+
+        this.setDeltaMovement(
+                Vec3.ZERO
+        );
+
+        this.hasImpulse = true;
+    }
+
+    /**
+     * Libera el balón muerto. Solo el mismo árbitro que señaló la falta
+     * puede quitar este estado.
+     */
+    public boolean releaseFoulFreeze(
+            ServerPlayer referee
+    ) {
+        if (referee == null
+                || foulFreezeReferee == null
+                || !foulFreezeReferee.equals(
+                referee.getUUID()
+        )) {
+            return false;
+        }
+
+        foulFreezeReferee = null;
+
+        this.setDeltaMovement(
+                Vec3.ZERO
+        );
+
+        this.hasImpulse = true;
+        return true;
+    }
+
+    public boolean isFoulFrozen() {
+        return foulFreezeReferee != null;
+    }
+
+    public boolean isFoulFrozenBy(
+            UUID refereeId
+    ) {
+        return foulFreezeReferee != null
+                && foulFreezeReferee.equals(
+                refereeId
+        );
     }
 
     /**
@@ -661,7 +744,8 @@ public class SoccerBallEntity extends Entity {
             ServerPlayer player,
             int maximumTicks
     ) {
-        if (isHeldByReferee()) {
+        if (isHeldByReferee()
+                || isFoulFrozen()) {
             return;
         }
 
@@ -1845,7 +1929,8 @@ public class SoccerBallEntity extends Entity {
             float charge,
             boolean passRequested
     ) {
-        if (!this.isAlive()) {
+        if (!this.isAlive()
+                || isFoulFrozen()) {
             return;
         }
 
@@ -2360,7 +2445,8 @@ public class SoccerBallEntity extends Entity {
     public boolean isPushable() {
         return !isHeldByGoalkeeper()
                 && !isHeldByReferee()
-                && !isControlledBySlide();
+                && !isControlledBySlide()
+                && !isFoulFrozen();
     }
 
     @Override
