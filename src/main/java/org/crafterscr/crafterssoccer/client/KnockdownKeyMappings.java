@@ -23,18 +23,32 @@ public final class KnockdownKeyMappings {
                     "key.categories.crafterssoccer"
             );
 
+    private static boolean standUpWasDown;
+
     private KnockdownKeyMappings() {
     }
 
     public static void clientTick() {
-        while (STAND_UP.consumeClick()) {
-            if (!ClientKnockdownState.isLocalPlayerDown()) {
-                continue;
-            }
+        boolean standUpDown =
+                STAND_UP.isDown();
+
+        /*
+         * Solo cuenta el flanco de pulsación:
+         * suelta -> presionada.
+         *
+         * Mantener G no genera taps adicionales. Para avanzar la barra
+         * el jugador debe soltar y volver a pulsar la tecla.
+         */
+        if (standUpDown
+                && !standUpWasDown
+                && ClientKnockdownState.isLocalPlayerDown()) {
 
             PacketDistributor.sendToServer(
                     new StandUpPayload()
             );
         }
+
+        standUpWasDown =
+                standUpDown;
     }
 }
