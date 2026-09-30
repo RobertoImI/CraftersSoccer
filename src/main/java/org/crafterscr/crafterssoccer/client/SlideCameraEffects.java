@@ -10,11 +10,11 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ViewportEvent;
 
 /**
- * Refuerza la sensación del barrido en primera persona.
+ * Refuerza la sensación del barrido en primera persona sin alterar la
+ * pose ni las dimensiones físicas del jugador.
  *
- * La altura sigue siendo controlada por KnockdownCameraController.
- * Aquí solamente añadimos una inclinación lateral y un pequeño
- * movimiento de cabeza hacia delante.
+ * El efecto es deliberadamente discreto: la cámara acompaña el tackle
+ * pero no debe hacer que primera persona se sienta más lenta o torpe.
  */
 @EventBusSubscriber(
         modid = CraftersSoccer.MOD_ID,
@@ -46,28 +46,27 @@ public final class SlideCameraEffects {
                 ClientSlideState.getLocalCameraProgress();
 
         /*
-         * 0-2 ticks: entrada muy rápida.
-         * 3-7 ticks: permanencia corta.
-         * 8-14 ticks: recuperación rápida.
+         * Entrada rápida, contacto corto y recuperación suave.
+         * No se fuerza Pose.SWIMMING: este efecto es 100 % visual.
          */
         float strength;
 
-        if (progress < 0.20F) {
+        if (progress < 0.25F) {
             float normalized =
-                    progress / 0.20F;
+                    progress / 0.25F;
 
             strength =
                     1.0F
                             - (1.0F - normalized)
                             * (1.0F - normalized);
 
-        } else if (progress < 0.53F) {
+        } else if (progress < 0.58F) {
             strength = 1.0F;
 
         } else {
             float normalized =
-                    (progress - 0.53F)
-                            / 0.47F;
+                    (progress - 0.58F)
+                            / 0.42F;
 
             strength =
                     Math.max(
@@ -80,12 +79,12 @@ public final class SlideCameraEffects {
 
         event.setRoll(
                 event.getRoll()
-                        + 4.5F * strength
+                        + 2.8F * strength
         );
 
         event.setPitch(
                 event.getPitch()
-                        + 1.5F * strength
+                        + 0.7F * strength
         );
     }
 }
