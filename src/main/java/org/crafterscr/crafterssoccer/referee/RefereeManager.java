@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.crafterscr.crafterssoccer.entity.SoccerBallEntity;
+import org.crafterscr.crafterssoccer.match.SoccerMatch;
 import org.crafterscr.crafterssoccer.match.SoccerMatchManager;
 import org.crafterscr.crafterssoccer.registry.ModSounds;
 
@@ -99,6 +100,150 @@ public final class RefereeManager {
                     )
             );
         }
+    }
+
+    /**
+     * Señala una falta y deja muerto el balón oficial exactamente
+     * en la zona donde quedó. El silbato se reproduce automáticamente.
+     */
+    public static FoulBallResult freezeBallForFoul(
+            MinecraftServer server,
+            ServerPlayer referee
+    ) {
+        if (!isAssignedReferee(
+                server,
+                referee
+        )) {
+            return FoulBallResult.NOT_REFEREE;
+        }
+
+        SoccerMatch match =
+                SoccerMatchManager.getActiveMatch(
+                        server
+                );
+
+        if (match == null) {
+            return FoulBallResult.NO_ACTIVE_MATCH;
+        }
+
+        SoccerBallEntity ball =
+                match.getOfficialBall(
+                        server
+                );
+
+        if (ball == null) {
+            return FoulBallResult.NO_BALL;
+        }
+
+        if (ball.isFoulFrozen()) {
+            return ball.isFoulFrozenBy(
+                    referee.getUUID()
+            )
+                    ? FoulBallResult.ALREADY_FROZEN
+                    : FoulBallResult.NOT_REFEREE;
+        }
+
+        ball.freezeForFoul(
+                referee
+        );
+
+        playWhistleForEveryone(
+                server
+        );
+
+        return FoulBallResult.SUCCESS;
+    }
+
+    /**
+     * Permite reanudar el juego después de que el árbitro colocó
+     * el balón. Se reproduce nuevamente el silbato.
+     */
+    public static FoulBallResult releaseBallFromFoul(
+            MinecraftServer server,
+            ServerPlayer referee
+    ) {
+        if (!isAssignedReferee(
+                server,
+                referee
+        )) {
+            return FoulBallResult.NOT_REFEREE;
+        }
+
+        SoccerMatch match =
+                SoccerMatchManager.getActiveMatch(
+                        server
+                );
+
+        if (match == null) {
+            return FoulBallResult.NO_ACTIVE_MATCH;
+        }
+
+        SoccerBallEntity ball =
+                match.getOfficialBall(
+                        server
+                );
+
+        if (ball == null) {
+            return FoulBallResult.NO_BALL;
+        }
+
+        if (!ball.isFoulFrozen()) {
+            return FoulBallResult.NOT_FROZEN;
+        }
+
+        if (!ball.releaseFoulFreeze(
+                referee
+        )) {
+            return FoulBallResult.NOT_REFEREE;
+        }
+
+        playWhistleForEveryone(
+                server
+        );
+
+        return FoulBallResult.SUCCESS;
+    }
+
+    public static boolean isBallFrozenForFoul(
+            MinecraftServer server
+    ) {
+        SoccerMatch match =
+                SoccerMatchManager.getActiveMatch(
+                        server
+                );
+
+        if (match == null) {
+            return false;
+        }
+
+        SoccerBallEntity ball =
+                match.getOfficialBall(
+                        server
+                );
+
+        return ball != null
+                && ball.isFoulFrozen();
+    }
+
+    private static boolean isAssignedReferee(
+            MinecraftServer server,
+            ServerPlayer player
+    ) {
+        return server != null
+                && player != null
+                && SoccerMatchManager.isReferee(
+                server,
+                player.getUUID()
+        );
+    }
+
+    public enum FoulBallResult {
+        SUCCESS,
+        NOT_REFEREE,
+        NO_ACTIVE_MATCH,
+        NO_BALL,
+        ALREADY_FROZEN,
+        NOT_FROZEN
     }
 
     /**
