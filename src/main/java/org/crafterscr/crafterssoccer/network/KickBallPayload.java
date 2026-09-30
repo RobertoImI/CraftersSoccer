@@ -19,6 +19,21 @@ public record KickBallPayload(
         boolean passRequested
 ) implements CustomPacketPayload {
 
+    /**
+     * Compatibilidad con llamadas internas antiguas: se interpreta
+     * como tiro normal, no como pase.
+     */
+    public KickBallPayload(
+            int entityId,
+            float charge
+    ) {
+        this(
+                entityId,
+                charge,
+                false
+        );
+    }
+
     public static final Type<KickBallPayload> TYPE =
             new Type<>(
                     ResourceLocation.fromNamespaceAndPath(
