@@ -14,7 +14,18 @@ final class CommandAccess {
 
     static boolean canControlMatch(CommandSourceStack source) {
         if (isAdministrator(source)) return true;
-        if (!(source.getEntity() instanceof ServerPlayer player)) return false;
-        return SoccerMatchManager.isReferee(source.getServer(), player.getUUID());
+        return isAssignedReferee(source);
+    }
+
+    static boolean isAssignedReferee(CommandSourceStack source) {
+        if (!(source.getEntity()
+                instanceof ServerPlayer player)) {
+            return false;
+        }
+
+        return SoccerMatchManager.isReferee(
+                source.getServer(),
+                player.getUUID()
+        );
     }
 }
