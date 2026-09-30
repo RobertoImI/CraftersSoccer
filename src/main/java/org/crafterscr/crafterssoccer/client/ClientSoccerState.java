@@ -6,7 +6,10 @@ import org.crafterscr.crafterssoccer.network.GoalkeeperActionPayload;
 import org.crafterscr.crafterssoccer.network.RefereeBallActionPayload;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.scores.PlayerTeam;
 
 import net.neoforged.neoforge.network.PacketDistributor;
 
@@ -27,6 +30,20 @@ public final class ClientSoccerState {
      * Esto hace que el juego sea más rápido y fluido.
      */
     public static final int MAX_CHARGE_TICKS = 24;
+
+    /**
+     * Hasta este tick el clic se interpreta como pase.
+     * Desde el tick siguiente comienza el tiro cargado.
+     */
+    public static final int PASS_MAX_TICKS = 6;
+
+    private static final double PASS_ASSIST_DISTANCE = 25.0D;
+    private static final double PASS_ASSIST_DOT =
+            Math.cos(
+                    Math.toRadians(
+                            22.0D
+                    )
+            );
 
     /**
      * Indica si actualmente se está cargando un tiro.
@@ -305,10 +322,14 @@ public final class ClientSoccerState {
         float finalCharge =
                 getCharge();
 
+        boolean passRequested =
+                chargeTicks <= PASS_MAX_TICKS;
+
         PacketDistributor.sendToServer(
                 new KickBallPayload(
                         targetBallId,
-                        finalCharge
+                        finalCharge,
+                        passRequested
                 )
         );
 
@@ -331,6 +352,140 @@ public final class ClientSoccerState {
 
     public static boolean isCharging() {
         return charging;
+    }
+
+    /**
+     * Devuelve true durante la ventana de clic rápido reservada al pase.
+     */
+    public static boolean isPassWindow() {
+        return charging
+                && chargeTicks <= PASS_MAX_TICKS;
+    }
+
+    /**
+     * Progreso visual de la ventana de pase, de 0 a 1.
+     */
+    public static float getPassWindowProgress() {
+        if (!charging) {
+            return 0.0F;
+        }
+
+        return Math.min(
+                1.0F,
+                chargeTicks
+                        / (float) PASS_MAX_TICKS
+        );
+    }
+
+    /**
+     * Indicador local aproximado del receptor que el servidor podría
+     * escoger. Solo sirve para HUD: el servidor vuelve a calcular todo.
+     */
+    public static boolean hasLikelyPassTarget(
+            Minecraft minecraft
+    ) {
+        if (minecraft.player == null
+                || minecraft.level == null
+                || !isPassWindow()) {
+            return false;
+        }
+
+        String side =
+                ClientMatchState.getPlayerTeamSide();
+
+        if (!"RED".equals(side)
+                && !"BLUE".equals(side)) {
+            return false;
+        }
+
+        Vec3 look =
+                minecraft.player.getLookAngle()
+                        .multiply(
+                                1.0D,
+                                0.0D,
+                                1.0D
+                        );
+
+        if (look.lengthSqr() < 0.0001D) {
+            return false;
+        }
+
+        look = look.normalize();
+
+        for (AbstractClientPlayer candidate
+                : minecraft.level.players()) {
+
+            if (candidate == minecraft.player
+                    || !candidate.isAlive()
+                    || candidate.isSpectator()
+                    || !isSameSoccerSide(
+                    candidate,
+                    side
+            )) {
+                continue;
+            }
+
+            Vec3 toCandidate =
+                    candidate.position()
+                            .subtract(
+                                    minecraft.player.position()
+                            )
+                            .multiply(
+                                    1.0D,
+                                    0.0D,
+                                    1.0D
+                            );
+
+            double distanceSqr =
+                    toCandidate.lengthSqr();
+
+            if (distanceSqr < 0.25D
+                    || distanceSqr
+                    > PASS_ASSIST_DISTANCE
+                    * PASS_ASSIST_DISTANCE) {
+                continue;
+            }
+
+            double dot =
+                    look.dot(
+                            toCandidate.normalize()
+                    );
+
+            if (dot >= PASS_ASSIST_DOT) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static boolean isSameSoccerSide(
+            AbstractClientPlayer candidate,
+            String side
+    ) {
+        if (!(candidate.getTeam()
+                instanceof PlayerTeam team)) {
+            return false;
+        }
+
+        String teamName =
+                team.getName();
+
+        if ("RED".equals(side)) {
+            return "csoccer_red".equals(
+                    teamName
+            )
+                    || "csoccer_red_gk".equals(
+                    teamName
+            );
+        }
+
+        return "csoccer_blue".equals(
+                teamName
+        )
+                || "csoccer_blue_gk".equals(
+                teamName
+        );
     }
 
     /**
