@@ -5,19 +5,13 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.Pose;
 
 /**
- * Baja la cámara local durante el derribo o la fase inicial del barrido.
+ * Baja la cámara local únicamente durante un derribo.
  *
- * IMPORTANTE:
- * La pose SWIMMING se aplica únicamente en primera persona.
- *
- * Antes se aplicaba también en tercera persona. Eso hacía que el modelo
- * del jugador local combinara:
- *
- * - la pose vanilla de natación;
- * - la animación de PlayerAnimator.
- *
- * Por eso el propio jugador se veía deformado, aunque los demás clientes
- * vieran correctamente la animación.
+ * El barrido ya no fuerza Pose.SWIMMING. Usar una pose vanilla para
+ * simular una cámara baja hacía que primera persona tuviera un estado
+ * local distinto al de tercera persona y podía producir correcciones
+ * visuales/de movimiento. El tackle utiliza ahora efectos de cámara
+ * puramente visuales.
  */
 public final class KnockdownCameraController {
 
@@ -40,9 +34,7 @@ public final class KnockdownCameraController {
         }
 
         boolean needsLowCamera =
-                ClientKnockdownState.isLocalPlayerDown()
-                        || ClientSlideState
-                        .shouldKeepFirstPersonCameraLow();
+                ClientKnockdownState.isLocalPlayerDown();
 
         boolean firstPerson =
                 minecraft.options
@@ -50,12 +42,8 @@ public final class KnockdownCameraController {
                         .isFirstPerson();
 
         /*
-         * La pose baja solamente se usa cuando el jugador realmente
-         * está viendo desde primera persona.
-         *
-         * En tercera persona el modelo debe quedar completamente libre
-         * para que PlayerAnimator reproduzca slide_soccer sin mezclarse
-         * con la pose vanilla de natación.
+         * La pose baja se reserva al sistema de derribo. El barrido no
+         * debe modificar la pose física/local del jugador.
          */
         if (needsLowCamera && firstPerson) {
             lowerFirstPersonCamera(
