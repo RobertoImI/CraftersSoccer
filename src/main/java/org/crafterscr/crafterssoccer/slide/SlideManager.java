@@ -31,36 +31,33 @@ import net.neoforged.neoforge.network.PacketDistributor;
  */
 public final class SlideManager {
 
-    public static final int SLIDE_DURATION_TICKS = 36;
+    public static final int SLIDE_DURATION_TICKS = 20;
     public static final int SLIDE_COOLDOWN_TICKS = 100;
 
+    /**
+     * Perfil determinista del barrido, en bloques por tick.
+     *
+     * La distancia total es de aproximadamente 5.44 bloques cuando no
+     * hay colisiones. No depende de sprint, cámara ni velocidad previa,
+     * por lo que primera y tercera persona tienen exactamente el mismo
+     * alcance real en el servidor.
+     */
+    private static final double[] SLIDE_SPEED_PROFILE = {
+            0.35D, 0.40D, 0.42D, 0.42D, 0.40D,
+            0.38D, 0.36D, 0.34D, 0.32D, 0.30D,
+            0.28D, 0.26D, 0.24D, 0.22D, 0.20D,
+            0.17D, 0.14D, 0.11D, 0.08D, 0.05D
+    };
+
     /*
-     * La velocidad no es constante. El inicio tiene un impulso fuerte,
-     * luego el jugador desliza y finalmente frena.
+     * La hitbox del tackle es deliberadamente baja y contenida.
+     * La animación puede inclinar el cuerpo, pero la detección competitiva
+     * se concentra cerca de las piernas.
      */
-    private static final double START_SPEED = 0.24D;
-    private static final double FAST_GLIDE_SPEED = 0.18D;
-    private static final double SLOW_GLIDE_SPEED = 0.11D;
-    private static final double END_SPEED = 0.045D;
-
-    /**
-     * Si el jugador comienza el barrido corriendo, conserva esa sensación
-     * con un impulso adicional durante toda la acción.
-     */
-    private static final double SPRINT_SLIDE_MULTIPLIER = 1.28D;
-
-    /**
-     * Conserva parte de la velocidad que llevaba el jugador antes
-     * de pulsar el barrido. El impulso se consume durante los primeros
-     * ticks, evitando la sensación de freno brusco en primera persona.
-     */
-    private static final double MAX_INITIAL_MOMENTUM_BONUS = 0.14D;
-    private static final double MIN_SPRINT_MOMENTUM_BONUS = 0.09D;
-    private static final int MOMENTUM_DECAY_TICKS = 16;
-
-    private static final double PLAYER_HIT_INFLATE = 0.32D;
-    private static final double BALL_SEARCH_RADIUS = 1.85D;
-    private static final int BALL_CONTROL_TICKS = 30;
+    private static final double PLAYER_HIT_INFLATE = 0.20D;
+    private static final double TACKLE_HEIGHT = 0.95D;
+    private static final double BALL_HIT_INFLATE = 0.30D;
+    private static final int BALL_CONTROL_TICKS = 14;
     private static final int OTHER_SLIDE_IMMUNITY_TICKS = 15;
 
     private static final float BACK_IMPACT = 80.0F;
@@ -144,39 +141,10 @@ public final class SlideManager {
         direction =
                 direction.normalize();
 
-        Vec3 incomingVelocity =
-                player.getDeltaMovement()
-                        .multiply(
-                                1.0D,
-                                0.0D,
-                                1.0D
-                        );
-
-        double initialMomentumBonus =
-                Math.min(
-                        MAX_INITIAL_MOMENTUM_BONUS,
-                        Math.sqrt(
-                                incomingVelocity.x
-                                        * incomingVelocity.x
-                                        + incomingVelocity.z
-                                        * incomingVelocity.z
-                        )
-                );
-
-        if (player.isSprinting()) {
-            initialMomentumBonus =
-                    Math.max(
-                            MIN_SPRINT_MOMENTUM_BONUS,
-                            initialMomentumBonus
-                    );
-        }
-
         ACTIVE.put(
                 player.getUUID(),
                 new SlideData(
-                        direction,
-                        player.isSprinting(),
-                        initialMomentumBonus
+                        direction
                 )
         );
 
@@ -281,8 +249,11 @@ public final class SlideManager {
             ServerPlayer player,
             SlideData data
     ) {
-        Vec3 previous =
+        Vec3 previousPosition =
                 player.position();
+
+        AABB previousBox =
+                player.getBoundingBox();
 
         player.move(
                 MoverType.SELF,
@@ -293,41 +264,73 @@ public final class SlideManager {
                 )
         );
 
+        /*
+         * El servidor es la única autoridad del desplazamiento del tackle.
+         * Se elimina cualquier velocidad residual para que el resultado no
+         * cambie por sprint, input local o la cámara utilizada.
+         */
         player.setDeltaMovement(
                 Vec3.ZERO
         );
 
         player.fallDistance = 0.0F;
 
-        if (data.ticks % 6 == 0) {
+        if (data.ticks % 5 == 0) {
             spawnDust(
                     player,
                     false
             );
         }
 
-        if (!data.hitPlayer) {
-            AABB swept =
-                    player.getBoundingBox()
-                            .minmax(
-                                    player.getBoundingBox()
-                                            .move(
-                                                    previous.subtract(
-                                                            player.position()
-                                                    )
-                                            )
-                            )
-                            .inflate(
-                                    PLAYER_HIT_INFLATE,
-                                    0.15D,
-                                    PLAYER_HIT_INFLATE
-                            );
+        AABB currentBox =
+                player.getBoundingBox();
 
+        AABB swept =
+                currentBox
+                        .minmax(previousBox)
+                        .inflate(
+                                PLAYER_HIT_INFLATE,
+                                0.05D,
+                                PLAYER_HIT_INFLATE
+                        );
+
+        /*
+         * Limita verticalmente la zona activa del barrido. Así la hitbox
+         * sigue la zona de las piernas y no todo el cuerpo de pie.
+         */
+        AABB tackleBox =
+                new AABB(
+                        swept.minX,
+                        swept.minY,
+                        swept.minZ,
+                        swept.maxX,
+                        Math.min(
+                                swept.maxY,
+                                player.getY()
+                                        + TACKLE_HEIGHT
+                        ),
+                        swept.maxZ
+                );
+
+        /*
+         * El balón se comprueba independientemente del jugador. Un tackle
+         * que toca pelota limpiamente ya no necesita golpear antes a un
+         * rival para obtener interacción con el balón.
+         */
+        if (!data.touchedBall) {
+            tryTouchBall(
+                    player,
+                    data,
+                    tackleBox
+            );
+        }
+
+        if (!data.hitPlayer) {
             List<ServerPlayer> victims =
                     player.serverLevel()
                             .getEntitiesOfClass(
                                     ServerPlayer.class,
-                                    swept,
+                                    tackleBox,
                                     victim ->
                                             victim != player
                                                     && victim.isAlive()
@@ -341,7 +344,7 @@ public final class SlideManager {
                     victims.stream()
                             .min(
                                     java.util.Comparator.comparingDouble(
-                                            player::distanceToSqr
+                                            previousPosition::distanceToSqr
                                     )
                             )
                             .orElse(null);
@@ -360,37 +363,60 @@ public final class SlideManager {
     private static double getMovementSpeed(
             SlideData data
     ) {
-        double speed;
+        int index =
+                Math.max(
+                        0,
+                        Math.min(
+                                data.ticks,
+                                SLIDE_SPEED_PROFILE.length - 1
+                        )
+                );
 
-        if (data.ticks < 6) {
-            speed = START_SPEED;
+        return SLIDE_SPEED_PROFILE[index];
+    }
 
-        } else if (data.ticks < 17) {
-            speed = FAST_GLIDE_SPEED;
+    private static void tryTouchBall(
+            ServerPlayer player,
+            SlideData data,
+            AABB tackleBox
+    ) {
+        AABB ballBox =
+                tackleBox.inflate(
+                        BALL_HIT_INFLATE,
+                        0.20D,
+                        BALL_HIT_INFLATE
+                );
 
-        } else if (data.ticks < 26) {
-            speed = SLOW_GLIDE_SPEED;
+        List<SoccerBallEntity> balls =
+                player.serverLevel()
+                        .getEntitiesOfClass(
+                                SoccerBallEntity.class,
+                                ballBox,
+                                ball ->
+                                        ball.isAlive()
+                                                && !ball.isHeldByReferee()
+                                                && !ball.isHeldByGoalkeeper()
+                        );
 
-        } else {
-            speed = END_SPEED;
+        SoccerBallEntity ball =
+                balls.stream()
+                        .min(
+                                java.util.Comparator.comparingDouble(
+                                        player::distanceToSqr
+                                )
+                        )
+                        .orElse(null);
+
+        if (ball == null) {
+            return;
         }
 
-        if (data.startedSprinting) {
-            speed *= SPRINT_SLIDE_MULTIPLIER;
-        }
+        data.touchedBall = true;
 
-        if (data.ticks < MOMENTUM_DECAY_TICKS) {
-            double remainingMomentum =
-                    1.0D
-                            - data.ticks
-                            / (double) MOMENTUM_DECAY_TICKS;
-
-            speed +=
-                    data.initialMomentumBonus
-                            * remainingMomentum;
-        }
-
-        return speed;
+        ball.grantSlideControl(
+                player,
+                BALL_CONTROL_TICKS
+        );
     }
 
     private static void handleVictim(
@@ -451,10 +477,6 @@ public final class SlideManager {
                         : 0.95F
         );
 
-        tryStealBall(
-                attacker,
-                victim
-        );
     }
 
     private static ImpactSide classifyImpact(
@@ -500,84 +522,6 @@ public final class SlideManager {
         }
 
         return ImpactSide.SIDE;
-    }
-
-    private static void tryStealBall(
-            ServerPlayer attacker,
-            ServerPlayer victim
-    ) {
-        AABB search =
-                victim.getBoundingBox()
-                        .inflate(
-                                BALL_SEARCH_RADIUS
-                        );
-
-        List<SoccerBallEntity> balls =
-                victim.serverLevel()
-                        .getEntitiesOfClass(
-                                SoccerBallEntity.class,
-                                search,
-                                ball ->
-                                        ball.isAlive()
-                                                && !ball.isHeldByReferee()
-                                                && !ball.isHeldByGoalkeeper()
-                        );
-
-        SoccerBallEntity ball =
-                balls.stream()
-                        .min(
-                                java.util.Comparator.comparingDouble(
-                                        attacker::distanceToSqr
-                                )
-                        )
-                        .orElse(null);
-
-        if (ball == null) {
-            return;
-        }
-
-        Vec3 attackerLook =
-                attacker.getLookAngle()
-                        .multiply(
-                                1.0D,
-                                0.0D,
-                                1.0D
-                        );
-
-        Vec3 attackerToBall =
-                ball.position()
-                        .subtract(
-                                attacker.position()
-                        )
-                        .multiply(
-                                1.0D,
-                                0.0D,
-                                1.0D
-                        );
-
-        if (attackerLook.lengthSqr() < 0.0001D
-                || attackerToBall.lengthSqr() < 0.0001D
-                || attackerLook.normalize()
-                .dot(
-                        attackerToBall.normalize()
-                ) < 0.20D
-                || attacker.distanceToSqr(ball)
-                > BALL_SEARCH_RADIUS
-                * BALL_SEARCH_RADIUS) {
-            return;
-        }
-
-        ball.grantSlideControl(
-                attacker,
-                BALL_CONTROL_TICKS
-        );
-
-        attacker.displayClientMessage(
-                Component.literal(
-                        "§a¡Robo limpio! §fControl temporal del balón."
-                ),
-                true
-        );
     }
 
     private static void spawnDust(
@@ -692,23 +636,16 @@ public final class SlideManager {
 
         private final Vec3 direction;
 
-        private final boolean startedSprinting;
-
-        private final double initialMomentumBonus;
-
         private int ticks;
 
         private boolean hitPlayer;
 
+        private boolean touchedBall;
+
         private SlideData(
-                Vec3 direction,
-                boolean startedSprinting,
-                double initialMomentumBonus
+                Vec3 direction
         ) {
             this.direction = direction;
-            this.startedSprinting = startedSprinting;
-            this.initialMomentumBonus =
-                    initialMomentumBonus;
         }
     }
 }
