@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import org.crafterscr.crafterssoccer.entity.SoccerBallEntity;
 import org.crafterscr.crafterssoccer.field.SoccerField;
+import org.crafterscr.crafterssoccer.field.SoccerFieldManager;
 import org.crafterscr.crafterssoccer.physics.SoccerBallPhysics;
 import org.crafterscr.crafterssoccer.registry.ModEntities;
 import org.crafterscr.crafterssoccer.registry.ModSounds;
@@ -115,6 +116,29 @@ public final class SoccerMatch {
 
     public UUID getOfficialBallUuid() {
         return officialBallUuid;
+    }
+
+    /**
+     * Expone únicamente el balón oficial del partido activo para
+     * acciones autoritativas del árbitro.
+     */
+    public SoccerBallEntity getOfficialBall(
+            MinecraftServer server
+    ) {
+        SoccerField field =
+                SoccerFieldManager.getField(
+                        server,
+                        fieldId
+                );
+
+        if (field == null) {
+            return null;
+        }
+
+        return getOfficialBall(
+                server,
+                field
+        );
     }
 
     public void start(
