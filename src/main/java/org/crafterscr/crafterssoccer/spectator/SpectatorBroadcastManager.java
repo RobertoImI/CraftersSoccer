@@ -258,6 +258,18 @@ public final class SpectatorBroadcastManager {
                 );
 
         if (currentSlot != null) {
+            if (!isAllowedViewer(
+                    server,
+                    viewer
+            )) {
+                exitViewer(
+                        server,
+                        viewer,
+                        true
+                );
+                return;
+            }
+
             int nextSlot =
                     nextAvailableSlotAfter(
                             server,
