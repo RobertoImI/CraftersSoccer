@@ -378,6 +378,10 @@ public final class SoccerMatchManager {
         }
 
         if (referee != null) {
+            releaseFoulFreezeForRefereeChange(
+                    server
+            );
+
             ServerPlayer previousReferee =
                     server.getPlayerList().getPlayer(
                             referee
@@ -427,6 +431,10 @@ public final class SoccerMatchManager {
         if (referee == null) {
             return false;
         }
+
+        releaseFoulFreezeForRefereeChange(
+                server
+        );
 
         ServerPlayer previousReferee =
                 server.getPlayerList().getPlayer(
@@ -750,6 +758,24 @@ public final class SoccerMatchManager {
         for (ServerPlayer player
                 : server.getPlayerList().getPlayers()) {
             PacketDistributor.sendToPlayer(player, payload);
+        }
+    }
+
+    private static void releaseFoulFreezeForRefereeChange(
+            MinecraftServer server
+    ) {
+        if (activeMatch == null) {
+            return;
+        }
+
+        org.crafterscr.crafterssoccer.entity.SoccerBallEntity ball =
+                activeMatch.getOfficialBall(
+                        server
+                );
+
+        if (ball != null
+                && ball.isFoulFrozen()) {
+            ball.forceReleaseFoulFreeze();
         }
     }
 
