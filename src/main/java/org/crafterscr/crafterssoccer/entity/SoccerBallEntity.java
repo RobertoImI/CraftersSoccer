@@ -498,6 +498,7 @@ public class SoccerBallEntity extends Entity {
         }
 
         foulFreezeReferee = null;
+        refereeSettleUntilGameTime = 0L;
 
         this.setDeltaMovement(
                 Vec3.ZERO
@@ -505,6 +506,20 @@ public class SoccerBallEntity extends Entity {
 
         this.hasImpulse = true;
         return true;
+    }
+
+    /**
+     * Limpieza de seguridad para cambios administrativos de árbitro.
+     */
+    public void forceReleaseFoulFreeze() {
+        foulFreezeReferee = null;
+        refereeSettleUntilGameTime = 0L;
+
+        this.setDeltaMovement(
+                Vec3.ZERO
+        );
+
+        this.hasImpulse = true;
     }
 
     public boolean isFoulFrozen() {
