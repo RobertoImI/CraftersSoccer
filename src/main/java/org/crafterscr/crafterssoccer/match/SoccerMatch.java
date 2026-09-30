@@ -1,5 +1,7 @@
 package org.crafterscr.crafterssoccer.match;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -886,9 +888,109 @@ public final class SoccerMatch {
             SoccerField field,
             SoccerTeamSide side
     ) {
-        int playerIndex = 0;
+        List<net.minecraft.core.BlockPos> teamSpawns =
+                side == SoccerTeamSide.RED
+                        ? field.getRedSpawns()
+                        : field.getBlueSpawns();
+
+        if (teamSpawns.isEmpty()) {
+            return;
+        }
+
+        UUID goalkeeperId =
+                SoccerMatchManager.getGoalkeeper(
+                        server,
+                        side
+                );
+
+        int reservedGoalkeeperSpawn = -1;
+        boolean goalkeeperTeleported = false;
+
+        /*
+         * El portero utiliza siempre el spawn de su equipo más cercano
+         * a su propia portería. Ese punto queda reservado para él mientras
+         * haya al menos otro spawn disponible para los jugadores de campo.
+         */
+        if (goalkeeperId != null
+                && playerIds.contains(
+                goalkeeperId
+        )) {
+
+            ServerPlayer goalkeeper =
+                    server.getPlayerList()
+                            .getPlayer(
+                                    goalkeeperId
+                            );
+
+            if (goalkeeper != null) {
+                reservedGoalkeeperSpawn =
+                        findClosestSpawnToOwnGoal(
+                                field,
+                                side,
+                                teamSpawns
+                        );
+
+                Vec3 goalkeeperPosition =
+                        getTeamSpawnPosition(
+                                field,
+                                side,
+                                reservedGoalkeeperSpawn
+                        );
+
+                if (goalkeeperPosition != null) {
+                    teleportPlayer(
+                            level,
+                            goalkeeper,
+                            goalkeeperPosition
+                    );
+
+                    goalkeeperTeleported = true;
+                }
+            }
+        }
+
+        List<Integer> fieldPlayerSpawns =
+                new ArrayList<>();
+
+        for (int spawnIndex = 0;
+             spawnIndex < teamSpawns.size();
+             spawnIndex++) {
+
+            /*
+             * Si solo existe un spawn, debe poder reutilizarse.
+             * Con dos o más sí reservamos el del portero.
+             */
+            if (goalkeeperTeleported
+                    && teamSpawns.size() > 1
+                    && spawnIndex
+                    == reservedGoalkeeperSpawn) {
+                continue;
+            }
+
+            fieldPlayerSpawns.add(
+                    spawnIndex
+            );
+        }
+
+        if (fieldPlayerSpawns.isEmpty()) {
+            fieldPlayerSpawns.add(
+                    Math.max(
+                            0,
+                            reservedGoalkeeperSpawn
+                    )
+            );
+        }
+
+        int fieldPlayerIndex = 0;
 
         for (UUID playerId : playerIds) {
+            if (goalkeeperTeleported
+                    && playerId.equals(
+                    goalkeeperId
+            )) {
+                continue;
+            }
+
             ServerPlayer player =
                     server.getPlayerList()
                             .getPlayer(playerId);
@@ -897,35 +999,137 @@ public final class SoccerMatch {
                 continue;
             }
 
-            Vec3 position =
-                    side == SoccerTeamSide.RED
-                            ? field.getRedSpawnPosition(
-                            playerIndex
-                    )
-                            : field.getBlueSpawnPosition(
-                            playerIndex
+            int spawnIndex =
+                    fieldPlayerSpawns.get(
+                            Math.floorMod(
+                                    fieldPlayerIndex,
+                                    fieldPlayerSpawns.size()
+                            )
                     );
 
-            playerIndex++;
+            fieldPlayerIndex++;
+
+            Vec3 position =
+                    getTeamSpawnPosition(
+                            field,
+                            side,
+                            spawnIndex
+                    );
 
             if (position == null) {
                 continue;
             }
 
-            player.teleportTo(
+            teleportPlayer(
                     level,
-                    position.x,
-                    position.y,
-                    position.z,
-                    Set.<RelativeMovement>of(),
-                    player.getYRot(),
-                    player.getXRot()
-            );
-
-            player.setDeltaMovement(
-                    Vec3.ZERO
+                    player,
+                    position
             );
         }
+    }
+
+    private static int findClosestSpawnToOwnGoal(
+            SoccerField field,
+            SoccerTeamSide side,
+            List<net.minecraft.core.BlockPos> spawns
+    ) {
+        AABB goal =
+                side == SoccerTeamSide.RED
+                        ? field.getRedGoalBounds()
+                        : field.getBlueGoalBounds();
+
+        if (goal == null
+                || spawns.isEmpty()) {
+            return 0;
+        }
+
+        double goalCenterX =
+                (goal.minX + goal.maxX) * 0.5D;
+
+        double goalCenterY =
+                (goal.minY + goal.maxY) * 0.5D;
+
+        double goalCenterZ =
+                (goal.minZ + goal.maxZ) * 0.5D;
+
+        int closestIndex = 0;
+        double closestDistance =
+                Double.MAX_VALUE;
+
+        for (int index = 0;
+             index < spawns.size();
+             index++) {
+
+            net.minecraft.core.BlockPos spawn =
+                    spawns.get(index);
+
+            double spawnX =
+                    spawn.getX() + 0.5D;
+
+            double spawnY =
+                    spawn.getY() + 0.10D;
+
+            double spawnZ =
+                    spawn.getZ() + 0.5D;
+
+            double dx =
+                    spawnX - goalCenterX;
+
+            double dy =
+                    spawnY - goalCenterY;
+
+            double dz =
+                    spawnZ - goalCenterZ;
+
+            double distance =
+                    dx * dx
+                            + dy * dy
+                            + dz * dz;
+
+            if (distance < closestDistance) {
+                closestDistance =
+                        distance;
+
+                closestIndex =
+                        index;
+            }
+        }
+
+        return closestIndex;
+    }
+
+    private static Vec3 getTeamSpawnPosition(
+            SoccerField field,
+            SoccerTeamSide side,
+            int spawnIndex
+    ) {
+        return side == SoccerTeamSide.RED
+                ? field.getRedSpawnPosition(
+                spawnIndex
+        )
+                : field.getBlueSpawnPosition(
+                spawnIndex
+        );
+    }
+
+    private static void teleportPlayer(
+            ServerLevel level,
+            ServerPlayer player,
+            Vec3 position
+    ) {
+        player.teleportTo(
+                level,
+                position.x,
+                position.y,
+                position.z,
+                Set.<RelativeMovement>of(),
+                player.getYRot(),
+                player.getXRot()
+        );
+
+        player.setDeltaMovement(
+                Vec3.ZERO
+        );
     }
 
     private static ServerLevel getFieldLevel(
