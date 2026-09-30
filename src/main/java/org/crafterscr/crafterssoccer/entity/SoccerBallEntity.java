@@ -1826,6 +1826,20 @@ public class SoccerBallEntity extends Entity {
     /**
      * Patea el balón mediante clic.
      */
+    /**
+     * Mantiene compatibilidad con llamadas anteriores al sistema de pase.
+     */
+    public void kick(
+            ServerPlayer player,
+            float charge
+    ) {
+        kick(
+                player,
+                charge,
+                false
+        );
+    }
+
     public void kick(
             ServerPlayer player,
             float charge,
