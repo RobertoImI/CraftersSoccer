@@ -344,7 +344,10 @@ public final class SlideManager {
                     victims.stream()
                             .min(
                                     java.util.Comparator.comparingDouble(
-                                            previousPosition::distanceToSqr
+                                            victim ->
+                                                    previousPosition.distanceToSqr(
+                                                            victim.position()
+                                                    )
                                     )
                             )
                             .orElse(null);
