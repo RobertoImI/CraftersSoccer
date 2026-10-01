@@ -10,5 +10,7 @@
   "crafterssoccer.animation.player_knockdown": "Derribo de jugador",
   "crafterssoccer.animation.player_knockdown.description": "Caída por acumulación de impactos entre jugadores",
   "key.crafterssoccer.slide": "Barrido",
-  "key.crafterssoccer.broadcast_camera": "Entrar/salir de cámara TV"
+  "key.crafterssoccer.broadcast_camera": "Entrar/salir de cámara TV",
+  "key.crafterssoccer.broadcast_camera_previous": "Cámara TV anterior",
+  "key.crafterssoccer.broadcast_camera_next": "Cámara TV siguiente"
 }
