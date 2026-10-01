@@ -17,7 +17,7 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
  */
 public final class ModNetworking {
 
-    private static final String NETWORK_VERSION = "12";
+    private static final String NETWORK_VERSION = "13";
 
     private ModNetworking() {
     }
@@ -70,6 +70,12 @@ public final class ModNetworking {
                 BroadcastCameraTogglePayload.TYPE,
                 BroadcastCameraTogglePayload.STREAM_CODEC,
                 ModNetworking::handleBroadcastCameraToggle
+        );
+
+        registrar.playToServer(
+                BroadcastCameraCyclePayload.TYPE,
+                BroadcastCameraCyclePayload.STREAM_CODEC,
+                ModNetworking::handleBroadcastCameraCycle
         );
 
         registrar.playToClient(
@@ -231,6 +237,25 @@ public final class ModNetworking {
                         .SpectatorBroadcastManager.toggleViewer(
                                 player.getServer(),
                                 player
+                        )
+        );
+    }
+
+    private static void handleBroadcastCameraCycle(
+            BroadcastCameraCyclePayload payload,
+            IPayloadContext context
+    ) {
+        if (!(context.player()
+                instanceof ServerPlayer player)) {
+            return;
+        }
+
+        context.enqueueWork(
+                () -> org.crafterscr.crafterssoccer.spectator
+                        .SpectatorBroadcastManager.cycleViewer(
+                                player.getServer(),
+                                player,
+                                payload.direction()
                         )
         );
     }
