@@ -9,10 +9,8 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * El cliente solicita avanzar en la transmisión TV.
- *
- * El servidor decide si debe entrar a la primera cámara,
- * cambiar a la siguiente disponible o salir después de la última.
+ * El cliente solicita entrar o salir de la transmisión TV.
+ * El cambio entre cámaras se maneja con BroadcastCameraCyclePayload.
  */
 public record BroadcastCameraTogglePayload()
         implements CustomPacketPayload {
