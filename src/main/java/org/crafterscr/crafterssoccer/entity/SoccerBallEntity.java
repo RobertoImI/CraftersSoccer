@@ -13,6 +13,9 @@ import org.crafterscr.crafterssoccer.physics.SoccerBallPhysics;
 import org.crafterscr.crafterssoccer.referee.RefereeCardManager;
 
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -38,6 +41,18 @@ import net.minecraft.world.phys.Vec3;
  * - Rotación visual.
  */
 public class SoccerBallEntity extends Entity {
+
+    /**
+     * Estado sincronizado cliente/servidor del balón muerto por falta.
+     *
+     * Es importante que el cliente también conozca este estado para que
+     * no ejecute físicas locales y luego sea corregido por el servidor.
+     */
+    private static final EntityDataAccessor<Boolean> FOUL_FROZEN =
+            SynchedEntityData.defineId(
+                    SoccerBallEntity.class,
+                    EntityDataSerializers.BOOLEAN
+            );
 
     /**
      * Radio físico aproximado del balón.
@@ -201,12 +216,12 @@ public class SoccerBallEntity extends Entity {
 
     @Override
     protected void defineSynchedData(
-            net.minecraft.network.syncher.SynchedEntityData.Builder builder
+            SynchedEntityData.Builder builder
     ) {
-        /*
-         * Todavía no se requieren datos personalizados
-         * sincronizados.
-         */
+        builder.define(
+                FOUL_FROZEN,
+                false
+        );
     }
 
     @Override
@@ -226,8 +241,12 @@ public class SoccerBallEntity extends Entity {
             return;
         }
 
-        if (!this.level().isClientSide()
-                && isFoulFrozen()) {
+        /*
+         * Balón muerto por falta: cliente y servidor deben cortar aquí.
+         * Así no existe movimiento visual local por piernas, cuerpos,
+         * golpes o física que luego el servidor tenga que corregir.
+         */
+        if (isFoulFrozen()) {
             this.setDeltaMovement(
                     Vec3.ZERO
             );
@@ -475,6 +494,11 @@ public class SoccerBallEntity extends Entity {
         this.foulFreezeReferee =
                 referee.getUUID();
 
+        this.entityData.set(
+                FOUL_FROZEN,
+                true
+        );
+
         this.setDeltaMovement(
                 Vec3.ZERO
         );
@@ -500,6 +524,11 @@ public class SoccerBallEntity extends Entity {
         foulFreezeReferee = null;
         refereeSettleUntilGameTime = 0L;
 
+        this.entityData.set(
+                FOUL_FROZEN,
+                false
+        );
+
         this.setDeltaMovement(
                 Vec3.ZERO
         );
@@ -515,6 +544,11 @@ public class SoccerBallEntity extends Entity {
         foulFreezeReferee = null;
         refereeSettleUntilGameTime = 0L;
 
+        this.entityData.set(
+                FOUL_FROZEN,
+                false
+        );
+
         this.setDeltaMovement(
                 Vec3.ZERO
         );
@@ -523,7 +557,9 @@ public class SoccerBallEntity extends Entity {
     }
 
     public boolean isFoulFrozen() {
-        return foulFreezeReferee != null;
+        return this.entityData.get(
+                FOUL_FROZEN
+        );
     }
 
     public boolean isFoulFrozenBy(
@@ -675,10 +711,18 @@ public class SoccerBallEntity extends Entity {
         );
 
         /*
-         * 20 ticks = 1 segundo completamente inmóvil.
+         * Si el balón está congelado por falta, el punto colocado por el
+         * árbitro pasa a ser inmediatamente su nueva posición inmóvil.
+         * Si no está en falta, conservamos el settle normal de 1 segundo.
          */
         this.refereeSettleUntilGameTime =
-                this.level().getGameTime() + 20L;
+                isFoulFrozen()
+                        ? 0L
+                        : this.level().getGameTime() + 20L;
+
+        this.setDeltaMovement(
+                Vec3.ZERO
+        );
 
         this.hasImpulse = true;
     }
