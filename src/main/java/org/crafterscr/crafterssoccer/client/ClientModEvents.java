@@ -80,6 +80,14 @@ public final class ClientModEvents {
             event.register(
                     BroadcastCameraKeyMappings.TOGGLE_BROADCAST
             );
+
+            event.register(
+                    BroadcastCameraKeyMappings.PREVIOUS_CAMERA
+            );
+
+            event.register(
+                    BroadcastCameraKeyMappings.NEXT_CAMERA
+            );
         }
 
         @SubscribeEvent
