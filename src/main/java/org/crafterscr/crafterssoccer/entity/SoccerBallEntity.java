@@ -55,6 +55,15 @@ public class SoccerBallEntity extends Entity {
             );
 
     /**
+     * Apariencia sincronizada del balón.
+     */
+    private static final EntityDataAccessor<Integer> BALL_STYLE =
+            SynchedEntityData.defineId(
+                    SoccerBallEntity.class,
+                    EntityDataSerializers.INT
+            );
+
+    /**
      * Radio físico aproximado del balón.
      */
     public static final float BALL_RADIUS = 0.25F;
@@ -221,6 +230,11 @@ public class SoccerBallEntity extends Entity {
         builder.define(
                 FOUL_FROZEN,
                 false
+        );
+
+        builder.define(
+                BALL_STYLE,
+                SoccerBallStyle.DEFAULT.getNetworkId()
         );
     }
 
@@ -2499,6 +2513,28 @@ public class SoccerBallEntity extends Entity {
         return this.rollingHeadingDegrees;
     }
 
+    public SoccerBallStyle getBallStyle() {
+        return SoccerBallStyle.fromNetworkId(
+                this.entityData.get(
+                        BALL_STYLE
+                )
+        );
+    }
+
+    public void setBallStyle(
+            SoccerBallStyle style
+    ) {
+        SoccerBallStyle safeStyle =
+                style == null
+                        ? SoccerBallStyle.DEFAULT
+                        : style;
+
+        this.entityData.set(
+                BALL_STYLE,
+                safeStyle.getNetworkId()
+        );
+    }
+
     @Override
     protected void readAdditionalSaveData(
             CompoundTag tag
@@ -2515,6 +2551,14 @@ public class SoccerBallEntity extends Entity {
                 tag.getFloat(
                         "RollingHeading"
                 );
+
+        this.setBallStyle(
+                SoccerBallStyle.fromNetworkId(
+                        tag.getInt(
+                                "BallStyle"
+                        )
+                )
+        );
     }
 
     @Override
@@ -2529,6 +2573,12 @@ public class SoccerBallEntity extends Entity {
         tag.putFloat(
                 "RollingHeading",
                 this.rollingHeadingDegrees
+        );
+
+        tag.putInt(
+                "BallStyle",
+                this.getBallStyle()
+                        .getNetworkId()
         );
     }
 
