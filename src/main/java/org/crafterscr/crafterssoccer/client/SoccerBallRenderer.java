@@ -2,6 +2,7 @@ package org.crafterscr.crafterssoccer.client;
 
 import org.crafterscr.crafterssoccer.CraftersSoccer;
 import org.crafterscr.crafterssoccer.entity.SoccerBallEntity;
+import org.crafterscr.crafterssoccer.entity.SoccerBallStyle;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -21,13 +22,22 @@ import net.minecraft.resources.ResourceLocation;
 public final class SoccerBallRenderer
         extends EntityRenderer<SoccerBallEntity> {
 
-    /**
-     * Ruta de la textura.
-     */
-    private static final ResourceLocation TEXTURE =
+    private static final ResourceLocation DEFAULT_TEXTURE =
             ResourceLocation.fromNamespaceAndPath(
                     CraftersSoccer.MOD_ID,
                     "textures/entity/soccer_ball.png"
+            );
+
+    private static final ResourceLocation POKEBALL_TEXTURE =
+            ResourceLocation.fromNamespaceAndPath(
+                    CraftersSoccer.MOD_ID,
+                    "textures/entity/soccer_ball_pokeball.png"
+            );
+
+    private static final ResourceLocation PIKACHU_TEXTURE =
+            ResourceLocation.fromNamespaceAndPath(
+                    CraftersSoccer.MOD_ID,
+                    "textures/entity/soccer_ball_pikachu.png"
             );
 
     /**
@@ -114,7 +124,9 @@ public final class SoccerBallRenderer
         VertexConsumer vertexConsumer =
                 bufferSource.getBuffer(
                         RenderType.entityCutoutNoCull(
-                                TEXTURE
+                                getTextureLocation(
+                                        ball
+                                )
                         )
                 );
 
@@ -141,6 +153,18 @@ public final class SoccerBallRenderer
     public ResourceLocation getTextureLocation(
             SoccerBallEntity entity
     ) {
-        return TEXTURE;
+        SoccerBallStyle style =
+                entity.getBallStyle();
+
+        return switch (style) {
+            case POKEBALL ->
+                    POKEBALL_TEXTURE;
+
+            case PIKACHU ->
+                    PIKACHU_TEXTURE;
+
+            case DEFAULT ->
+                    DEFAULT_TEXTURE;
+        };
     }
 }
