@@ -18,8 +18,9 @@ import net.neoforged.neoforge.network.PacketDistributor;
  * Transmisión tipo televisión para espectadores.
  *
  * Soporta hasta tres operadores de cámara simultáneos.
- * Los espectadores usan B para entrar, cambiar a la siguiente cámara
- * disponible y salir después de la última.
+ * Los espectadores usan B para entrar o salir de la transmisión.
+ * Mientras miran TV, las flechas izquierda/derecha cambian entre
+ * cámaras disponibles en ambas direcciones.
  */
 public final class SpectatorBroadcastManager {
 
@@ -234,14 +235,7 @@ public final class SpectatorBroadcastManager {
     }
 
     /**
-     * B funciona como una secuencia:
-     *
-     * - Si no mira TV -> entra a la primera cámara.
-     * - Si ya mira TV -> pasa a la siguiente cámara.
-     * - Si estaba en la última -> sale de TV.
-     *
-     * Con una sola cámara conserva el comportamiento anterior:
-     * entrar -> salir.
+     * B únicamente entra o sale de la transmisión.
      */
     public static void toggleViewer(
             MinecraftServer server,
@@ -252,67 +246,13 @@ public final class SpectatorBroadcastManager {
             return;
         }
 
-        Integer currentSlot =
-                VIEWER_CAMERAS.get(
-                        viewer.getUUID()
-                );
-
-        if (currentSlot != null) {
-            if (!isAllowedViewer(
+        if (VIEWER_CAMERAS.containsKey(
+                viewer.getUUID()
+        )) {
+            exitViewer(
                     server,
-                    viewer
-            )) {
-                exitViewer(
-                        server,
-                        viewer,
-                        true
-                );
-                return;
-            }
-
-            int nextSlot =
-                    nextAvailableSlotAfter(
-                            server,
-                            currentSlot
-                    );
-
-            if (nextSlot < 0) {
-                exitViewer(
-                        server,
-                        viewer,
-                        true
-                );
-                return;
-            }
-
-            VIEWER_CAMERAS.put(
-                    viewer.getUUID(),
-                    nextSlot
-            );
-
-            ServerPlayer operator =
-                    getCameraOperatorBySlot(
-                            server,
-                            nextSlot
-                    );
-
-            viewer.displayClientMessage(
-                    Component.literal(
-                            "§bCámara TV "
-                                    + (nextSlot + 1)
-                                    + "§7: §f"
-                                    + (operator == null
-                                    ? ""
-                                    : operator.getName()
-                                    .getString())
-                                    + " §8(§fB§8: siguiente)"
-                    ),
-                    false
-            );
-
-            synchronizePlayer(
-                    server,
-                    viewer
+                    viewer,
+                    true
             );
             return;
         }
@@ -382,8 +322,84 @@ public final class SpectatorBroadcastManager {
                                 : operator.getName()
                                 .getString())
                                 + (cameraCount > 1
-                                ? " §8(§fB§8: siguiente)"
-                                : " §8(§fB§8: salir)")
+                                ? " §8(§f←/→§8 cambiar, §fB§8 salir)"
+                                : " §8(§fB§8 salir)")
+                ),
+                false
+        );
+
+        synchronizePlayer(
+                server,
+                viewer
+        );
+    }
+
+    /**
+     * Cambia entre las cámaras disponibles sin salir de TV.
+     *
+     * direction < 0 = anterior
+     * direction > 0 = siguiente
+     */
+    public static void cycleViewer(
+            MinecraftServer server,
+            ServerPlayer viewer,
+            int direction
+    ) {
+        if (server == null
+                || viewer == null
+                || direction == 0) {
+            return;
+        }
+
+        Integer currentSlot =
+                VIEWER_CAMERAS.get(
+                        viewer.getUUID()
+                );
+
+        if (currentSlot == null
+                || !isAllowedViewer(
+                server,
+                viewer
+        )) {
+            return;
+        }
+
+        int targetSlot =
+                findAvailableSlotInDirection(
+                        server,
+                        currentSlot,
+                        direction < 0 ? -1 : 1
+                );
+
+        /*
+         * Con una sola cámara disponible no hay nada que cambiar.
+         */
+        if (targetSlot < 0
+                || targetSlot == currentSlot) {
+            return;
+        }
+
+        VIEWER_CAMERAS.put(
+                viewer.getUUID(),
+                targetSlot
+        );
+
+        ServerPlayer operator =
+                getCameraOperatorBySlot(
+                        server,
+                        targetSlot
+                );
+
+        viewer.displayClientMessage(
+                Component.literal(
+                        "§bCámara TV "
+                                + (targetSlot + 1)
+                                + "§7: §f"
+                                + (operator == null
+                                ? ""
+                                : operator.getName()
+                                .getString())
+                                + " §8(§f←/→§8 cambiar, §fB§8 salir)"
                 ),
                 false
         );
@@ -721,13 +737,26 @@ public final class SpectatorBroadcastManager {
         return -1;
     }
 
-    private static int nextAvailableSlotAfter(
+    private static int findAvailableSlotInDirection(
             MinecraftServer server,
-            int currentSlot
+            int currentSlot,
+            int direction
     ) {
-        for (int slot = currentSlot + 1;
-             slot < MAX_CAMERAS;
-             slot++) {
+        int step =
+                direction < 0
+                        ? -1
+                        : 1;
+
+        for (int offset = 1;
+             offset <= MAX_CAMERAS;
+             offset++) {
+
+            int slot =
+                    Math.floorMod(
+                            currentSlot
+                                    + step * offset,
+                            MAX_CAMERAS
+                    );
 
             if (getCameraOperatorBySlot(
                     server,
