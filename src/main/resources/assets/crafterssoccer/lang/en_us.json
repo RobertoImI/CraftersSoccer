@@ -10,5 +10,7 @@
   "crafterssoccer.animation.player_knockdown": "Player Knockdown",
   "crafterssoccer.animation.player_knockdown.description": "Fall caused by accumulated player impacts",
   "key.crafterssoccer.slide": "Slide tackle",
-  "key.crafterssoccer.broadcast_camera": "Enter/exit TV camera"
+  "key.crafterssoccer.broadcast_camera": "Enter/exit TV camera",
+  "key.crafterssoccer.broadcast_camera_previous": "Previous TV camera",
+  "key.crafterssoccer.broadcast_camera_next": "Next TV camera"
 }
