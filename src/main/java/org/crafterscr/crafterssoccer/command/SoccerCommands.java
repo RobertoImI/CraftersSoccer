@@ -801,11 +801,18 @@ public final class SoccerCommands {
                                 )
                 )
 
+                /*
+                 * El subárbol "foul" se mantiene visible en Brigadier.
+                 *
+                 * Antes dependía de isAssignedReferee en .requires().
+                 * Como el rol de árbitro puede asignarse después de que el
+                 * jugador ya recibió el árbol de comandos al conectarse,
+                 * el cliente podía no mostrar freeze/release/status hasta
+                 * volver a entrar. La autoridad sigue siendo del servidor:
+                 * freeze/release validan que quien ejecuta sea el árbitro.
+                 */
                 .then(
                         Commands.literal("foul")
-                                .requires(
-                                        CommandAccess::isAssignedReferee
-                                )
 
                                 .then(
                                         Commands.literal("freeze")
