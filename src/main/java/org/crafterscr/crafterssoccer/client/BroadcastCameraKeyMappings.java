@@ -1,5 +1,6 @@
 package org.crafterscr.crafterssoccer.client;
 
+import org.crafterscr.crafterssoccer.network.BroadcastCameraCyclePayload;
 import org.crafterscr.crafterssoccer.network.BroadcastCameraTogglePayload;
 
 import com.mojang.blaze3d.platform.InputConstants;
@@ -13,10 +14,11 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * Tecla B para controlar la transmisión TV.
+ * Controles de cámara TV:
  *
- * Con una cámara: entrar -> salir.
- * Con varias: Cámara 1 -> Cámara 2 -> Cámara 3 -> salir.
+ * B = entrar / salir.
+ * Flecha izquierda = cámara anterior.
+ * Flecha derecha = cámara siguiente.
  */
 public final class BroadcastCameraKeyMappings {
 
@@ -28,14 +30,30 @@ public final class BroadcastCameraKeyMappings {
                     "key.categories.crafterssoccer"
             );
 
+    public static final KeyMapping PREVIOUS_CAMERA =
+            new KeyMapping(
+                    "key.crafterssoccer.broadcast_camera_previous",
+                    InputConstants.Type.KEYSYM,
+                    GLFW.GLFW_KEY_LEFT,
+                    "key.categories.crafterssoccer"
+            );
+
+    public static final KeyMapping NEXT_CAMERA =
+            new KeyMapping(
+                    "key.crafterssoccer.broadcast_camera_next",
+                    InputConstants.Type.KEYSYM,
+                    GLFW.GLFW_KEY_RIGHT,
+                    "key.categories.crafterssoccer"
+            );
+
     private BroadcastCameraKeyMappings() {
     }
 
     public static void clientTick() {
-        while (TOGGLE_BROADCAST.consumeClick()) {
-            Minecraft minecraft =
-                    Minecraft.getInstance();
+        Minecraft minecraft =
+                Minecraft.getInstance();
 
+        while (TOGGLE_BROADCAST.consumeClick()) {
             if (minecraft.player == null) {
                 continue;
             }
@@ -57,6 +75,36 @@ public final class BroadcastCameraKeyMappings {
 
             PacketDistributor.sendToServer(
                     new BroadcastCameraTogglePayload()
+            );
+        }
+
+        /*
+         * Las flechas solo tienen efecto mientras el jugador ya está
+         * dentro de la transmisión.
+         */
+        while (PREVIOUS_CAMERA.consumeClick()) {
+            if (minecraft.player == null
+                    || !ClientBroadcastCameraState.isWatching()) {
+                continue;
+            }
+
+            PacketDistributor.sendToServer(
+                    new BroadcastCameraCyclePayload(
+                            -1
+                    )
+            );
+        }
+
+        while (NEXT_CAMERA.consumeClick()) {
+            if (minecraft.player == null
+                    || !ClientBroadcastCameraState.isWatching()) {
+                continue;
+            }
+
+            PacketDistributor.sendToServer(
+                    new BroadcastCameraCyclePayload(
+                            1
+                    )
             );
         }
     }
