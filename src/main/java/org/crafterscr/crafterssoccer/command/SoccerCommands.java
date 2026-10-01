@@ -6,6 +6,8 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.crafterscr.crafterssoccer.entity.SoccerBallEntity;
+import org.crafterscr.crafterssoccer.entity.SoccerBallStyle;
+import org.crafterscr.crafterssoccer.entity.SoccerBallStyleManager;
 import org.crafterscr.crafterssoccer.field.SoccerField;
 import org.crafterscr.crafterssoccer.field.SoccerFieldManager;
 import org.crafterscr.crafterssoccer.match.SoccerMatch;
@@ -91,6 +93,53 @@ public final class SoccerCommands {
                                         context ->
                                                 spawnBall(
                                                         context.getSource()
+                                                )
+                                )
+                )
+
+                .then(
+                        Commands.literal("design")
+
+                                .then(
+                                        Commands.literal("default")
+                                                .executes(
+                                                        context ->
+                                                                setBallDesign(
+                                                                        context.getSource(),
+                                                                        SoccerBallStyle.DEFAULT
+                                                                )
+                                                )
+                                )
+
+                                .then(
+                                        Commands.literal("pokeball")
+                                                .executes(
+                                                        context ->
+                                                                setBallDesign(
+                                                                        context.getSource(),
+                                                                        SoccerBallStyle.POKEBALL
+                                                                )
+                                                )
+                                )
+
+                                .then(
+                                        Commands.literal("pikachu")
+                                                .executes(
+                                                        context ->
+                                                                setBallDesign(
+                                                                        context.getSource(),
+                                                                        SoccerBallStyle.PIKACHU
+                                                                )
+                                                )
+                                )
+
+                                .then(
+                                        Commands.literal("status")
+                                                .executes(
+                                                        context ->
+                                                                showBallDesign(
+                                                                        context.getSource()
+                                                                )
                                                 )
                                 )
                 )
@@ -3153,6 +3202,12 @@ public final class SoccerCommands {
                 spawnPosition.z
         );
 
+        ball.setBallStyle(
+                SoccerBallStyleManager.getSelectedStyle(
+                        source.getServer()
+                )
+        );
+
         level.addFreshEntity(ball);
 
         source.sendSuccess(
@@ -3160,6 +3215,46 @@ public final class SoccerCommands {
                         "§aBalón creado correctamente."
                 ),
                 true
+        );
+
+        return 1;
+    }
+
+    private static int setBallDesign(
+            CommandSourceStack source,
+            SoccerBallStyle style
+    ) {
+        SoccerBallStyleManager.setSelectedStyle(
+                source.getServer(),
+                style
+        );
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§aDiseño del balón seleccionado: §f"
+                                + style.getCommandName()
+                                + "§a. Se aplicará a los próximos balones."
+                ),
+                true
+        );
+
+        return 1;
+    }
+
+    private static int showBallDesign(
+            CommandSourceStack source
+    ) {
+        SoccerBallStyle style =
+                SoccerBallStyleManager.getSelectedStyle(
+                        source.getServer()
+                );
+
+        source.sendSuccess(
+                () -> Component.literal(
+                        "§eDiseño actual del balón: §f"
+                                + style.getCommandName()
+                ),
+                false
         );
 
         return 1;
