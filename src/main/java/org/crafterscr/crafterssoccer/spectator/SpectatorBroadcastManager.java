@@ -301,12 +301,6 @@ public final class SpectatorBroadcastManager {
                 firstSlot
         );
 
-        ServerPlayer operator =
-                getCameraOperatorBySlot(
-                        server,
-                        firstSlot
-                );
-
         int cameraCount =
                 getConfiguredCameraCount(
                         server
@@ -314,16 +308,9 @@ public final class SpectatorBroadcastManager {
 
         viewer.displayClientMessage(
                 Component.literal(
-                        "§aCámara TV activada: §bCámara "
-                                + (firstSlot + 1)
-                                + " §7- §f"
-                                + (operator == null
-                                ? ""
-                                : operator.getName()
-                                .getString())
-                                + (cameraCount > 1
-                                ? " §8(§f←/→§8 cambiar, §fB§8 salir)"
-                                : " §8(§fB§8 salir)")
+                        cameraCount > 1
+                                ? "§aCámara TV activada. §8(§f←/→§8 cambiar, §fB§8 salir)"
+                                : "§aCámara TV activada. §8(§fB§8 salir)"
                 ),
                 false
         );
@@ -384,26 +371,10 @@ public final class SpectatorBroadcastManager {
                 targetSlot
         );
 
-        ServerPlayer operator =
-                getCameraOperatorBySlot(
-                        server,
-                        targetSlot
-                );
-
-        viewer.displayClientMessage(
-                Component.literal(
-                        "§bCámara TV "
-                                + (targetSlot + 1)
-                                + "§7: §f"
-                                + (operator == null
-                                ? ""
-                                : operator.getName()
-                                .getString())
-                                + " §8(§f←/→§8 cambiar, §fB§8 salir)"
-                ),
-                false
-        );
-
+        /*
+         * Cambiar de cámara es silencioso para no llenar el chat.
+         * El HUD/cámara cambia inmediatamente mediante sincronización.
+         */
         synchronizePlayer(
                 server,
                 viewer
@@ -647,18 +618,9 @@ public final class SpectatorBroadcastManager {
                     replacement
             );
 
-            if (notifyCameraChange) {
-                viewer.displayClientMessage(
-                        Component.literal(
-                                "§eLa cámara anterior dejó de estar disponible. "
-                                        + "§7Cambiando a §bCámara "
-                                        + (replacement + 1)
-                                        + "§7."
-                        ),
-                        false
-                );
-            }
-
+            /*
+             * El cambio automático también es silencioso para evitar spam.
+             */
             synchronizePlayer(
                     server,
                     viewer
