@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.crafterscr.crafterssoccer.entity.SoccerBallEntity;
+import org.crafterscr.crafterssoccer.entity.SoccerBallStyleManager;
 import org.crafterscr.crafterssoccer.field.SoccerField;
 import org.crafterscr.crafterssoccer.field.SoccerFieldManager;
 import org.crafterscr.crafterssoccer.physics.SoccerBallPhysics;
@@ -675,6 +676,12 @@ public final class SoccerMatch {
                 position.x,
                 position.y,
                 position.z
+        );
+
+        ball.setBallStyle(
+                SoccerBallStyleManager.getSelectedStyle(
+                        server
+                )
         );
 
         ball.setDeltaMovement(
